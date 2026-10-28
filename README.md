@@ -97,3 +97,9 @@ promjena `.env` ne mijenja već stvorene lozinke.
 
 Osam izvještaja i PASS/FAIL provjere za realni seed nalaze se u `reports/`.
 Naredbe, definicije i očekivani rezultati: [Task 4 — Izvještaji](docs/04_izvjestaji.md).
+
+## Analiza performansi (Task 7)
+
+Ponovljiva mjerenja nad 100.175 rezervacija, EXPLAIN planovi, odluke o indeksima,
+trosak pisanja/prostora i rezultati regresijskih provjera:
+[Task 7 — Performanse](docs/07_performanse.md).

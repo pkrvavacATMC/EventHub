@@ -1,0 +1,20 @@
+{
+  "started_utc": "2026-10-28T12:11:36.938283+00:00",
+  "rounds": 3,
+  "order": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "source_sha256": {
+    "02_baseline.sql": "b5705de2208057452a5dc2a26b1f1a3731824955be505ca0b59831ff1b77be6b",
+    "03_add_indexes.sql": "d3129e107ece444e88923e0c7765200a7a8ac741b6419f8fe816b0174e8055b1",
+    "04_after.sql": "928472d594046b7658f6d7c62fb0a9cff01fb5dd11e53840d6df142cb75d02bb",
+    "07_rejected_indexes.sql": "eb9754bbececf4c4f827606a5d0e05941b25cc60c5d47983e9fb19a9a640fea4",
+    "06_rejected_cover.sql": "30ba2963049b5a3bbe336ef237f202dd4a1c919f398ff43539517d0e53d30d29"
+  },
+  "finished_utc": "2026-10-28T12:13:01.115828+00:00",
+  "exit_code": 0,
+  "result_sha256": "30ac00382afb706b9901709d507418fee05103be6e8a4066fa4c3f40304bff82"
+}

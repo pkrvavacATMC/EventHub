@@ -1,3 +1,6 @@
 .env
 backup/*.sql
 backup/*.sql.gz
+
+# Lokalni zapis gresaka mjerenja (runner ga ponovno stvara).
+perf/results/series.stderr

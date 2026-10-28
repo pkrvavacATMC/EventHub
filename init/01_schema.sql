@@ -145,7 +145,9 @@ CREATE TABLE reservation (
   CONSTRAINT fk_res_buyer FOREIGN KEY (buyer_id) REFERENCES buyer (id) ON DELETE RESTRICT,
   INDEX idx_res_event_status   (event_id, status),
   INDEX idx_res_status_expires (status, expires_at),
-  INDEX idx_res_confirmed_at   (confirmed_at)
+  INDEX idx_res_confirmed_at   (confirmed_at),
+  -- Postojeci uski FK indeks dovoljan je za povijest kupca (~20 redaka).
+  INDEX fk_res_buyer (buyer_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE reservation_item (
@@ -205,5 +207,6 @@ CREATE TABLE ticket (
   -- hold mora pripadati stavci karte (NULL = stajaca, FK se ne provjerava)
   CONSTRAINT fk_ticket_rs FOREIGN KEY (reservation_seat_id, reservation_item_id)
     REFERENCES reservation_seat (id, reservation_item_id) ON DELETE RESTRICT,
+  -- Task 7: uski indeks dovoljan je za selektivni raspon povrata.
   INDEX idx_ticket_cancelled_at (cancelled_at)
 ) ENGINE=InnoDB;
