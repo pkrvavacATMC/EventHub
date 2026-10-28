@@ -1,0 +1,9 @@
+# Koristi tests/test_liquibase.py: vlastiti projekt, volumen i testne lozinke.
+services:
+  db:
+    container_name: ${EVENTHUB_TEST_DB_CONTAINER:?Pokreni kroz tests/test_liquibase.py}
+    ports: !reset []
+    command:
+      - --event-scheduler=OFF
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci

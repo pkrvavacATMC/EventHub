@@ -1,22 +1,14 @@
--- =====================================================================
--- EventHub - 04: viewovi za izvjestaje
--- Definicije:
---  * preostali kapacitet eventa = SUM(category.capacity - reserved)
---  * confirmed tickets = karte potvrdenih rezervacija bez cancelled_at
---  * cancellation rate po kartama = karte koje je KUPAC otkazao
---        / sve rezervirane karte koje nisu istekle
---    (istekle rezervacije su napustene kupnje, ne otkazivanja - prikazuju se zasebno)
---  * bruto prihod po mjesecu confirmed_at, povrati po mjesecu cancelled_at
--- =====================================================================
-USE eventhub;
+--liquibase formatted sql
 
-CREATE VIEW v_category_capacity AS
+--changeset eventhub:004-v_category_capacity dbms:mariadb
+CREATE OR REPLACE VIEW v_category_capacity AS
 SELECT c.id AS category_id, c.event_id, c.name AS category_name, c.seating_type,
        c.price, c.service_fee, c.capacity, c.reserved,
        c.capacity - c.reserved AS remaining
   FROM ticket_category c;
 
-CREATE VIEW v_event_capacity AS
+--changeset eventhub:004-v_event_capacity dbms:mariadb
+CREATE OR REPLACE VIEW v_event_capacity AS
 SELECT e.id AS event_id, e.organizer_id, e.name AS event_name, e.event_date,
        e.capacity AS event_capacity,
        COALESCE(SUM(c.capacity),0)              AS sellable_capacity,
@@ -27,7 +19,8 @@ SELECT e.id AS event_id, e.organizer_id, e.name AS event_name, e.event_date,
   LEFT JOIN ticket_category c ON c.event_id = e.id
  GROUP BY e.id, e.organizer_id, e.name, e.event_date, e.capacity;
 
-CREATE VIEW v_reservations_by_event AS
+--changeset eventhub:004-v_reservations_by_event dbms:mariadb
+CREATE OR REPLACE VIEW v_reservations_by_event AS
 SELECT e.id AS event_id, e.organizer_id, e.name AS event_name,
        COUNT(r.id) AS total_reservations,
        COALESCE(SUM(r.status = 'pending'),0)   AS pending,
@@ -38,7 +31,8 @@ SELECT e.id AS event_id, e.organizer_id, e.name AS event_name,
   LEFT JOIN reservation r ON r.event_id = e.id
  GROUP BY e.id, e.organizer_id, e.name;
 
-CREATE VIEW v_ticket_stats AS
+--changeset eventhub:004-v_ticket_stats dbms:mariadb
+CREATE OR REPLACE VIEW v_ticket_stats AS
 SELECT e.id AS event_id, e.organizer_id, e.name AS event_name,
        COALESCE(i.reserved_ever, 0)        AS tickets_reserved_ever,
        COALESCE(i.pending_tickets, 0)      AS pending_tickets,
@@ -68,7 +62,8 @@ SELECT e.id AS event_id, e.organizer_id, e.name AS event_name,
                JOIN reservation r       ON r.id  = ri.reservation_id
               GROUP BY r.event_id) t ON t.event_id = e.id;
 
-CREATE VIEW v_attendance AS
+--changeset eventhub:004-v_attendance dbms:mariadb
+CREATE OR REPLACE VIEW v_attendance AS
 SELECT e.id AS event_id, e.organizer_id, e.name AS event_name, e.event_date,
        COALESCE(a.valid_tickets, 0)  AS valid_tickets,
        COALESCE(a.checked_in, 0)     AS checked_in,
@@ -83,7 +78,8 @@ SELECT e.id AS event_id, e.organizer_id, e.name AS event_name, e.event_date,
                JOIN reservation r       ON r.id  = ri.reservation_id
               GROUP BY r.event_id) a ON a.event_id = e.id;
 
-CREATE VIEW v_revenue_monthly AS
+--changeset eventhub:004-v_revenue_monthly dbms:mariadb
+CREATE OR REPLACE VIEW v_revenue_monthly AS
 SELECT x.event_id, e.organizer_id, e.name AS event_name, x.month,
        SUM(x.ticket_gross)   AS ticket_gross,
        SUM(x.protection_fee) AS protection_fees,
@@ -114,9 +110,8 @@ SELECT x.event_id, e.organizer_id, e.name AS event_name, x.month,
   JOIN event e ON e.id = x.event_id
  GROUP BY x.event_id, e.organizer_id, e.name, x.month;
 
--- Kontrola brojaca: ocekivano 0 redaka
--- aktivno = karte pending rezervacija + neotkazane karte
-CREATE VIEW v_reserved_check AS
+--changeset eventhub:004-v_reserved_check dbms:mariadb
+CREATE OR REPLACE VIEW v_reserved_check AS
 SELECT c.id AS category_id, c.reserved,
        COALESCE(p.q, 0) + COALESCE(t.q, 0) AS computed
   FROM ticket_category c
@@ -129,3 +124,4 @@ SELECT c.id AS category_id, c.reserved,
               WHERE tk.cancelled_at IS NULL
               GROUP BY ri.category_id) t ON t.category_id = c.id
  WHERE c.reserved <> COALESCE(p.q, 0) + COALESCE(t.q, 0);
+

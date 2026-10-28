@@ -1,7 +1,8 @@
+--liquibase formatted sql
+
 -- =====================================================================
 -- EventHub - 01: tablice (MariaDB 10.6+, testirano na 10.11)
--- Redoslijed izvrsavanja: 01_schema -> 02_functions_triggers -> 03_procedures
---                         -> 04_views -> 05_users.sh
+-- Redoslijed migracija odreduje db.changelog-master.xml.
 --
 -- Pretpostavke (za dokumentaciju):
 --  * Jedna rezervacija = jedan event, 1 do 4 karte ukupno.
@@ -28,10 +29,12 @@
 --  * ticket (reservation_seat_id, reservation_item_id) -> hold mora biti iz stavke karte
 -- =====================================================================
 
-DROP DATABASE IF EXISTS eventhub;
-CREATE DATABASE eventhub CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE eventhub;
 
+-- Pocetna struktura. Postojece tablice prethodno provjerava 000-adoption-guard.sql.
+
+--changeset eventhub:001-table-city dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='city';
 CREATE TABLE city (
   id   INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
@@ -39,6 +42,9 @@ CREATE TABLE city (
   CONSTRAINT chk_city_name CHECK (TRIM(name) <> '')
 ) ENGINE=InnoDB;
 
+--changeset eventhub:001-table-organizer dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='organizer';
 CREATE TABLE organizer (
   id    INT AUTO_INCREMENT PRIMARY KEY,
   name  VARCHAR(150) NOT NULL,
@@ -48,6 +54,9 @@ CREATE TABLE organizer (
   CONSTRAINT chk_organizer_email CHECK (email LIKE '%_@_%._%' AND email NOT LIKE '% %')
 ) ENGINE=InnoDB;
 
+--changeset eventhub:001-table-location dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='location';
 CREATE TABLE location (
   id       INT AUTO_INCREMENT PRIMARY KEY,
   name     VARCHAR(150) NOT NULL,
@@ -58,6 +67,9 @@ CREATE TABLE location (
   CONSTRAINT fk_location_city FOREIGN KEY (city_id) REFERENCES city (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+--changeset eventhub:001-table-buyer dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='buyer';
 CREATE TABLE buyer (
   id      INT AUTO_INCREMENT PRIMARY KEY,
   name    VARCHAR(100) NOT NULL,
@@ -71,6 +83,9 @@ CREATE TABLE buyer (
   CONSTRAINT fk_buyer_city FOREIGN KEY (city_id) REFERENCES city (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+--changeset eventhub:001-table-event dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='event';
 CREATE TABLE event (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   name         VARCHAR(200) NOT NULL,
@@ -85,6 +100,9 @@ CREATE TABLE event (
   INDEX idx_event_date (event_date)
 ) ENGINE=InnoDB;
 
+--changeset eventhub:001-table-ticket_category dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_category';
 CREATE TABLE ticket_category (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   event_id     INT NOT NULL,
@@ -104,6 +122,9 @@ CREATE TABLE ticket_category (
   CONSTRAINT fk_category_event FOREIGN KEY (event_id) REFERENCES event (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+--changeset eventhub:001-table-seat dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='seat';
 CREATE TABLE seat (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   category_id INT NOT NULL,
@@ -116,6 +137,9 @@ CREATE TABLE seat (
   CONSTRAINT fk_seat_category FOREIGN KEY (category_id) REFERENCES ticket_category (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+--changeset eventhub:001-table-reservation dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservation';
 CREATE TABLE reservation (
   id                    INT AUTO_INCREMENT PRIMARY KEY,
   event_id              INT NOT NULL,
@@ -150,6 +174,9 @@ CREATE TABLE reservation (
   INDEX fk_res_buyer (buyer_id)
 ) ENGINE=InnoDB;
 
+--changeset eventhub:001-table-reservation_item dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservation_item';
 CREATE TABLE reservation_item (
   id                     INT AUTO_INCREMENT PRIMARY KEY,
   reservation_id         INT NOT NULL,
@@ -170,7 +197,9 @@ CREATE TABLE reservation_item (
     REFERENCES ticket_category (id, event_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
--- Hold sjedala. Jedno sjedalo = najvise jedan AKTIVAN hold (UNIQUE dopusta vise NULL-ova).
+--changeset eventhub:001-table-reservation_seat dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservation_seat';
 CREATE TABLE reservation_seat (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   reservation_item_id INT NOT NULL,
@@ -188,6 +217,9 @@ CREATE TABLE reservation_seat (
     REFERENCES reservation_item (id, category_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+--changeset eventhub:001-table-ticket dbms:mariadb
+--preconditions onFail:MARK_RAN onError:HALT
+--precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket';
 CREATE TABLE ticket (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   reservation_item_id INT NOT NULL,
@@ -210,3 +242,4 @@ CREATE TABLE ticket (
   -- Task 7: uski indeks dovoljan je za selektivni raspon povrata.
   INDEX idx_ticket_cancelled_at (cancelled_at)
 ) ENGINE=InnoDB;
+

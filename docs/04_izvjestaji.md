@@ -19,7 +19,7 @@ provjere poznatih vrijednosti mogu opravdano pasti.
 
 ## Definicije i upiti
 
-Metrike su definirane u [`init/04_views.sql`](../init/04_views.sql), a osam
+Metrike su definirane u [`migrations/004-views.sql`](../migrations/004-views.sql), a osam
 konkretnih odgovora u [`reports/01_reports.sql`](../reports/01_reports.sql).
 Za prikaz JOIN-ova i agregacija treba pogledati i definicije viewova.
 

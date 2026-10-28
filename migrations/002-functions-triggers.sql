@@ -1,29 +1,20 @@
--- =====================================================================
--- EventHub - 02: funkcije i triggeri
--- Triggeri provode SAMO pravila koja FK/UNIQUE/CHECK ne mogu izraziti
--- (pravila preko vise redova, prijelazi statusa, nepromjenjivost).
--- Admin triggeri zakljucavaju roditeljski red (FOR UPDATE) da istovremene
--- izmjene ne mogu zajedno preci kapacitet.
--- =====================================================================
-USE eventhub;
+--liquibase formatted sql
 
-DELIMITER //
+-- Svaki objekt je zaseban changeset; JDBC dobiva cijelu definiciju.
+-- Nema klijentske naredbe DELIMITER. Buduce izmjene dodavati u nove datoteke.
 
--- Jedino mjesto gdje su definirani rokovi povrata bez zastite
-CREATE FUNCTION refund_percent(p_hours_before INT) RETURNS DECIMAL(5,2)
+--changeset eventhub:002-refund_percent dbms:mariadb splitStatements:false
+CREATE OR REPLACE FUNCTION refund_percent(p_hours_before INT) RETURNS DECIMAL(5,2)
 DETERMINISTIC NO SQL
 BEGIN
   IF p_hours_before >= 168 THEN RETURN 80.00;
   ELSEIF p_hours_before >= 48 THEN RETURN 50.00;
   ELSE RETURN 0.00;
   END IF;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- LOCATION / EVENT: event.capacity <= location.capacity,
---                   zbroj kategorija <= event.capacity
--- ---------------------------------------------------------------------
-CREATE TRIGGER trg_location_bu BEFORE UPDATE ON location
+--changeset eventhub:002-trg_location_bu dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_location_bu BEFORE UPDATE ON location
 FOR EACH ROW
 BEGIN
   DECLARE v_max INT;
@@ -34,9 +25,10 @@ BEGIN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Na lokaciji postoji event veceg kapaciteta';
     END IF;
   END IF;
-END//
+END;
 
-CREATE TRIGGER trg_event_bi BEFORE INSERT ON event
+--changeset eventhub:002-trg_event_bi dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_event_bi BEFORE INSERT ON event
 FOR EACH ROW
 BEGIN
   DECLARE v_loc_cap INT;
@@ -47,9 +39,10 @@ BEGIN
   IF NEW.event_date <= NOW() THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Event mora biti u buducnosti';
   END IF;
-END//
+END;
 
-CREATE TRIGGER trg_event_bu BEFORE UPDATE ON event
+--changeset eventhub:002-trg_event_bu dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_event_bu BEFORE UPDATE ON event
 FOR EACH ROW
 BEGIN
   DECLARE v_loc_cap INT;
@@ -74,12 +67,10 @@ BEGIN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Kapacitet eventa je manji od zbroja kapaciteta kategorija';
     END IF;
   END IF;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- TICKET_CATEGORY
--- ---------------------------------------------------------------------
-CREATE TRIGGER trg_category_bi BEFORE INSERT ON ticket_category
+--changeset eventhub:002-trg_category_bi dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_category_bi BEFORE INSERT ON ticket_category
 FOR EACH ROW
 BEGIN
   DECLARE v_event_cap INT;
@@ -92,9 +83,10 @@ BEGIN
   IF v_sum + NEW.capacity > v_event_cap THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Zbroj kapaciteta kategorija prelazi kapacitet eventa';
   END IF;
-END//
+END;
 
-CREATE TRIGGER trg_category_bu BEFORE UPDATE ON ticket_category
+--changeset eventhub:002-trg_category_bu dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_category_bu BEFORE UPDATE ON ticket_category
 FOR EACH ROW
 BEGIN
   DECLARE v_event_cap INT;
@@ -124,12 +116,10 @@ BEGIN
       END IF;
     END IF;
   END IF;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- SEAT: samo u sjedecoj kategoriji, broj sjedala <= capacity, nepromjenjivo
--- ---------------------------------------------------------------------
-CREATE TRIGGER trg_seat_bi BEFORE INSERT ON seat
+--changeset eventhub:002-trg_seat_bi dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_seat_bi BEFORE INSERT ON seat
 FOR EACH ROW
 BEGIN
   DECLARE v_type VARCHAR(10);
@@ -144,29 +134,29 @@ BEGIN
   IF v_cnt + 1 > v_cap THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Broj sjedala prelazi kapacitet kategorije';
   END IF;
-END//
+END;
 
-CREATE TRIGGER trg_seat_bu BEFORE UPDATE ON seat
+--changeset eventhub:002-trg_seat_bu dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_seat_bu BEFORE UPDATE ON seat
 FOR EACH ROW
 BEGIN
   IF NEW.category_id <> OLD.category_id THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Sjedalo ne moze promijeniti kategoriju';
   END IF;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- RESERVATION: uvijek nastaje kao pending; prijelazi statusa; nepromjenjivi podaci
--- ---------------------------------------------------------------------
-CREATE TRIGGER trg_reservation_bi BEFORE INSERT ON reservation
+--changeset eventhub:002-trg_reservation_bi dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_reservation_bi BEFORE INSERT ON reservation
 FOR EACH ROW
 BEGIN
   IF NEW.status <> 'pending' OR NEW.confirmed_at IS NOT NULL OR NEW.cancelled_at IS NOT NULL
      OR NEW.cancel_reason IS NOT NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Nova rezervacija mora biti pending';
   END IF;
-END//
+END;
 
-CREATE TRIGGER trg_reservation_bu BEFORE UPDATE ON reservation
+--changeset eventhub:002-trg_reservation_bu dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_reservation_bu BEFORE UPDATE ON reservation
 FOR EACH ROW
 BEGIN
   IF NEW.event_id <> OLD.event_id OR NEW.buyer_id <> OLD.buyer_id
@@ -200,13 +190,10 @@ BEGIN
   IF OLD.confirmed_at IS NOT NULL AND NOT (NEW.confirmed_at <=> OLD.confirmed_at) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'confirmed_at se ne smije mijenjati';
   END IF;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- RESERVATION_ITEM: samo pending, max 4 karte, nepromjenjivo
--- (isti event provodi kompozitni FK fk_item_reservation + fk_item_category)
--- ---------------------------------------------------------------------
-CREATE TRIGGER trg_item_bi BEFORE INSERT ON reservation_item
+--changeset eventhub:002-trg_item_bi dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_item_bi BEFORE INSERT ON reservation_item
 FOR EACH ROW
 BEGIN
   DECLARE v_status VARCHAR(10);
@@ -219,19 +206,17 @@ BEGIN
   IF v_total + NEW.quantity > 4 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Rezervacija moze imati najvise 4 karte';
   END IF;
-END//
+END;
 
-CREATE TRIGGER trg_item_bu BEFORE UPDATE ON reservation_item
+--changeset eventhub:002-trg_item_bu dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_item_bu BEFORE UPDATE ON reservation_item
 FOR EACH ROW
 BEGIN
   SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Stavke rezervacije su nepromjenjive';
-END//
+END;
 
--- ---------------------------------------------------------------------
--- RESERVATION_SEAT: samo sjedeca kategorija, aktivan, broj <= quantity
--- (sjedalo iz kategorije stavke provode fk_rs_seat + fk_rs_item)
--- ---------------------------------------------------------------------
-CREATE TRIGGER trg_rs_bi BEFORE INSERT ON reservation_seat
+--changeset eventhub:002-trg_rs_bi dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_rs_bi BEFORE INSERT ON reservation_seat
 FOR EACH ROW
 BEGIN
   DECLARE v_type VARCHAR(10);
@@ -249,9 +234,10 @@ BEGIN
   IF v_cnt + 1 > v_qty THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Broj sjedala prelazi kolicinu stavke';
   END IF;
-END//
+END;
 
-CREATE TRIGGER trg_rs_bu BEFORE UPDATE ON reservation_seat
+--changeset eventhub:002-trg_rs_bu dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_rs_bu BEFORE UPDATE ON reservation_seat
 FOR EACH ROW
 BEGIN
   IF NEW.reservation_item_id <> OLD.reservation_item_id OR NEW.seat_id <> OLD.seat_id
@@ -261,13 +247,10 @@ BEGIN
   IF OLD.released_at IS NOT NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Oslobodeno sjedalo se ne moze ponovno aktivirati';
   END IF;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- TICKET: samo potvrdena rezervacija, sjedeca/stajaca pravila, aktivan hold
--- (hold iz iste stavke provodi kompozitni FK fk_ticket_rs)
--- ---------------------------------------------------------------------
-CREATE TRIGGER trg_ticket_bi BEFORE INSERT ON ticket
+--changeset eventhub:002-trg_ticket_bi dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_ticket_bi BEFORE INSERT ON ticket
 FOR EACH ROW
 BEGIN
   DECLARE v_type VARCHAR(10);
@@ -301,9 +284,10 @@ BEGIN
   IF v_cnt + 1 > v_qty THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Broj karata prelazi kolicinu stavke';
   END IF;
-END//
+END;
 
-CREATE TRIGGER trg_ticket_bu BEFORE UPDATE ON ticket
+--changeset eventhub:002-trg_ticket_bu dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_ticket_bu BEFORE UPDATE ON ticket
 FOR EACH ROW
 BEGIN
   DECLARE v_price DECIMAL(10,2);
@@ -328,18 +312,21 @@ BEGIN
   IF NEW.refund_amount IS NOT NULL AND NEW.refund_amount > v_price THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Povrat ne smije biti veci od cijene karte';
   END IF;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- Zabrana brisanja (povijesna tocnost)
--- ---------------------------------------------------------------------
-CREATE TRIGGER trg_reservation_bd BEFORE DELETE ON reservation FOR EACH ROW
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Brisanje rezervacija nije dozvoljeno'//
-CREATE TRIGGER trg_item_bd BEFORE DELETE ON reservation_item FOR EACH ROW
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Brisanje stavki nije dozvoljeno'//
-CREATE TRIGGER trg_rs_bd BEFORE DELETE ON reservation_seat FOR EACH ROW
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Brisanje zauzeca sjedala nije dozvoljeno'//
-CREATE TRIGGER trg_ticket_bd BEFORE DELETE ON ticket FOR EACH ROW
-  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Brisanje karata nije dozvoljeno'//
+--changeset eventhub:002-trg_reservation_bd dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_reservation_bd BEFORE DELETE ON reservation FOR EACH ROW
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Brisanje rezervacija nije dozvoljeno';
 
-DELIMITER ;
+--changeset eventhub:002-trg_item_bd dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_item_bd BEFORE DELETE ON reservation_item FOR EACH ROW
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Brisanje stavki nije dozvoljeno';
+
+--changeset eventhub:002-trg_rs_bd dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_rs_bd BEFORE DELETE ON reservation_seat FOR EACH ROW
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Brisanje zauzeca sjedala nije dozvoljeno';
+
+--changeset eventhub:002-trg_ticket_bd dbms:mariadb splitStatements:false
+CREATE OR REPLACE TRIGGER trg_ticket_bd BEFORE DELETE ON ticket FOR EACH ROW
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Brisanje karata nije dozvoljeno';
+

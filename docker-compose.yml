@@ -6,10 +6,11 @@ services:
     environment:
       TZ: Europe/Zagreb                                   # NOW() u lokalnom vremenu
       MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
-      EVENTHUB_APP_PASSWORD: ${EVENTHUB_APP_PASSWORD}       # koristi 05_users.sh
-      EVENTHUB_REPORT_PASSWORD: ${EVENTHUB_REPORT_PASSWORD} # koristi 05_users.sh
-      # MARIADB_USER / MARIADB_DATABASE se namjerno NE koriste: taj korisnik bi
-      # dobio ALL PRIVILEGES na bazu, a aplikacija smije samo pozivati procedure.
+      EVENTHUB_APP_PASSWORD: ${EVENTHUB_APP_PASSWORD:?Postavi EVENTHUB_APP_PASSWORD u .env}
+      EVENTHUB_REPORT_PASSWORD: ${EVENTHUB_REPORT_PASSWORD:?Postavi EVENTHUB_REPORT_PASSWORD u .env}
+      MARIADB_DATABASE: eventhub                         # samo prazna baza; objekte stvara Liquibase
+      # MARIADB_USER se ne koristi: automatski bi dobio ALL PRIVILEGES.
+      # Korisnike i njihove ovlasti stvara Liquibase.
     command:
       - --event-scheduler=ON
       - --character-set-server=utf8mb4
@@ -18,12 +19,36 @@ services:
       - "127.0.0.1:3306:3306"
     volumes:
       - db_data:/var/lib/mysql                          # trajna pohrana
-      - ./init:/docker-entrypoint-initdb.d:ro           # izvrsava se samo na praznom volumenu
+    secrets:
+      - eventhub_app_password
+      - eventhub_report_password
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
       timeout: 5s
       retries: 10
 
+  liquibase:
+    image: liquibase:4.33.0
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      LIQUIBASE_COMMAND_URL: jdbc:mariadb://db:3306/eventhub
+      LIQUIBASE_COMMAND_USERNAME: root
+      LIQUIBASE_COMMAND_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Postavi MARIADB_ROOT_PASSWORD u .env}
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: migrations/db.changelog-master.xml
+      LIQUIBASE_SEARCH_PATH: /liquibase/changelog
+    volumes:
+      - ./migrations:/liquibase/changelog/migrations:ro
+    command: ["update"]
+
 volumes:
   db_data:
+
+secrets:
+  eventhub_app_password:
+    environment: EVENTHUB_APP_PASSWORD
+  eventhub_report_password:
+    environment: EVENTHUB_REPORT_PASSWORD

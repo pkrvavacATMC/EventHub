@@ -1,29 +1,10 @@
--- =====================================================================
--- EventHub - 03: procedure i MariaDB event
---
--- Strategija konkurentnosti (task 6):
---  * Sve procedure koje mijenjaju stanje rade u READ COMMITTED: svako obicno
---    citanje vidi zadnje commitano stanje, pa provjera nakon cekanja na lock
---    ne gleda zastarjeli snapshot (kao sto bi se dogodilo u REPEATABLE READ).
---  * Pristup se serijalizira eksplicitnim FOR UPDATE na redu koji se provjerava;
---    provjera (npr. kapacitet) se radi nad vrijednostima procitanim u istom
---    zakljucavajucem upitu.
---  * Redoslijed zakljucavanja je isti svugdje (nema ciklusa -> nema deadlocka):
---        reservation -> ticket -> ticket_category (uzlazno po id) -> event
---  * Zadnja linija obrane su ogranicenja u bazi:
---        CHECK chk_category_reserved (reserved BETWEEN 0 AND capacity)
---        UNIQUE uq_active_seat       (jedno sjedalo = jedan aktivan hold)
---  * Procedure se pozivaju izvan otvorene transakcije (same rade START/COMMIT).
--- =====================================================================
-USE eventhub;
+--liquibase formatted sql
 
-DELIMITER //
+-- Svaki objekt je zaseban changeset; JDBC dobiva cijelu definiciju.
+-- Nema klijentske naredbe DELIMITER. Buduce izmjene dodavati u nove datoteke.
 
--- ---------------------------------------------------------------------
--- generate_seats: redovi A, B, C... x p_per_row.
--- Kapacitet kategorije mora biti tocno p_rows * p_per_row (kapacitet = broj sjedala).
--- ---------------------------------------------------------------------
-CREATE PROCEDURE generate_seats(IN p_category_id INT, IN p_rows INT, IN p_per_row INT)
+--changeset eventhub:003-generate_seats dbms:mariadb splitStatements:false
+CREATE OR REPLACE PROCEDURE generate_seats(IN p_category_id INT, IN p_rows INT, IN p_per_row INT)
 BEGIN
   DECLARE v_type VARCHAR(10) DEFAULT NULL;
   DECLARE v_cap INT;
@@ -64,16 +45,10 @@ BEGIN
     SET r = r + 1;
   END WHILE;
   COMMIT;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- create_reservation
--- p_items: JSON niz stavki, npr.
---   '[{"category_id":1,"quantity":2},{"category_id":2,"seats":[5,6]}]'
--- Stajace kategorije: "quantity". Sjedece: "seats" (quantity = broj sjedala).
--- Cijena i naknada UVIJEK se uzimaju iz kategorije (kupac ih ne moze zadati).
--- ---------------------------------------------------------------------
-CREATE PROCEDURE create_reservation(IN p_buyer_id INT, IN p_event_id INT, IN p_items LONGTEXT,
+--changeset eventhub:003-create_reservation dbms:mariadb splitStatements:false
+CREATE OR REPLACE PROCEDURE create_reservation(IN p_buyer_id INT, IN p_event_id INT, IN p_items LONGTEXT,
                                     IN p_refund_protection BOOLEAN, OUT p_reservation_id INT)
 BEGIN
   DECLARE v_event_date DATETIME DEFAULT NULL;
@@ -282,12 +257,10 @@ BEGIN
   COMMIT;
   DROP TEMPORARY TABLE IF EXISTS tmp_items;
   DROP TEMPORARY TABLE IF EXISTS tmp_seats;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- confirm_reservation: provjera isteka, status, izdavanje karata
--- ---------------------------------------------------------------------
-CREATE PROCEDURE confirm_reservation(IN p_reservation_id INT)
+--changeset eventhub:003-confirm_reservation dbms:mariadb splitStatements:false
+CREATE OR REPLACE PROCEDURE confirm_reservation(IN p_reservation_id INT)
 BEGIN
   DECLARE v_status VARCHAR(10) DEFAULT NULL;
   DECLARE v_expires DATETIME;
@@ -335,16 +308,10 @@ BEGIN
    WHERE ri.reservation_id = p_reservation_id AND rs.released_at IS NULL;
 
   COMMIT;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- release_reservation (INTERNA - aplikacija je ne smije pozivati):
--- otkazuje pending rezervaciju i oslobada mjesta, uz razlog otkazivanja.
---   'buyer'   - kupac je otkazao (poziva cancel_reservation)
---   'expired' - istekao rok placanja (poziva expire_reservations);
---               rok se ponovno provjerava pod lockom
--- ---------------------------------------------------------------------
-CREATE PROCEDURE release_reservation(IN p_reservation_id INT, IN p_reason VARCHAR(10))
+--changeset eventhub:003-release_reservation dbms:mariadb splitStatements:false
+CREATE OR REPLACE PROCEDURE release_reservation(IN p_reservation_id INT, IN p_reason VARCHAR(10))
 BEGIN
   DECLARE v_status VARCHAR(10) DEFAULT NULL;
   DECLARE v_expires DATETIME;
@@ -396,20 +363,16 @@ BEGIN
      SET status = 'cancelled', cancelled_at = NOW(), cancel_reason = p_reason
    WHERE id = p_reservation_id;
   COMMIT;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- cancel_reservation: kupac otkazuje pending rezervaciju (cijelu)
--- ---------------------------------------------------------------------
-CREATE PROCEDURE cancel_reservation(IN p_reservation_id INT)
+--changeset eventhub:003-cancel_reservation dbms:mariadb splitStatements:false
+CREATE OR REPLACE PROCEDURE cancel_reservation(IN p_reservation_id INT)
 BEGIN
   CALL release_reservation(p_reservation_id, 'buyer');
-END//
+END;
 
--- ---------------------------------------------------------------------
--- cancel_ticket: otkazivanje jedne karte potvrdene rezervacije, uz povrat
--- ---------------------------------------------------------------------
-CREATE PROCEDURE cancel_ticket(IN p_ticket_id INT, OUT p_refund_amount DECIMAL(10,2))
+--changeset eventhub:003-cancel_ticket dbms:mariadb splitStatements:false
+CREATE OR REPLACE PROCEDURE cancel_ticket(IN p_ticket_id INT, OUT p_refund_amount DECIMAL(10,2))
 BEGIN
   DECLARE v_res INT DEFAULT NULL;
   DECLARE v_status VARCHAR(10);
@@ -488,14 +451,10 @@ BEGIN
   END IF;
 
   COMMIT;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- check_in_ticket: skeniranje na ulazu odredenog eventa.
--- Karta mora pripadati tom eventu; od 24 h prije do 24 h nakon pocetka.
--- Sam check-in je jedan atomicni UPDATE.
--- ---------------------------------------------------------------------
-CREATE PROCEDURE check_in_ticket(IN p_event_id INT, IN p_ticket_code CHAR(32))
+--changeset eventhub:003-check_in_ticket dbms:mariadb splitStatements:false
+CREATE OR REPLACE PROCEDURE check_in_ticket(IN p_event_id INT, IN p_ticket_code CHAR(32))
 BEGIN
   DECLARE v_event_id INT DEFAULT NULL;
   DECLARE v_event_date DATETIME DEFAULT NULL;
@@ -518,15 +477,10 @@ BEGIN
   IF ROW_COUNT() = 0 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Karta je otkazana ili vec iskoristena';
   END IF;
-END//
+END;
 
--- ---------------------------------------------------------------------
--- expire_reservations: otkazuje istekle pending rezervacije (razlog 'expired').
--- Greska na jednoj rezervaciji ne zaustavlja ostale: ta se rezervacija preskace
--- i ponovno pokusava sljedece minute (npr. kod isteka cekanja na lock ili utrke
--- s potvrdom). Greske se namjerno ne biljeze - poznato ogranicenje.
--- ---------------------------------------------------------------------
-CREATE PROCEDURE expire_reservations()
+--changeset eventhub:003-expire_reservations dbms:mariadb splitStatements:false
+CREATE OR REPLACE PROCEDURE expire_reservations()
 BEGIN
   DECLARE done INT DEFAULT 0;
   DECLARE v_id INT DEFAULT NULL;
@@ -543,11 +497,10 @@ BEGIN
     SET done = 0;   -- upozorenje iz pozvane procedure ne smije prekinuti petlju
   END LOOP;
   CLOSE cur;
-END//
+END;
 
-DELIMITER ;
-
--- Scheduler mora biti ukljucen (--event-scheduler=ON, vidi docker-compose.yml)
-CREATE EVENT ev_expire_reservations
+--changeset eventhub:003-ev_expire_reservations dbms:mariadb
+-- Postojeci raspored i status eventa ostaju sacuvani.
+CREATE EVENT IF NOT EXISTS ev_expire_reservations
   ON SCHEDULE EVERY 1 MINUTE
   DO CALL expire_reservations();

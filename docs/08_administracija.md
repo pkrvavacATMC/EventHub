@@ -25,7 +25,7 @@ za sljedeće kopije koristi zasebna imena s datumom i vremenom.
 
 Backup sadrži SQL za strukturu i podatke, uključujući viewove. Korisnici i
 njihove ovlasti nisu dio ovog backupa jedne aplikacijske baze; njihovo stvaranje
-definirano je u [`init/05_users.sh`](../init/05_users.sh).
+definirano je u [`migrations/005-users.sql`](../migrations/005-users.sql).
 
 Preusmjeravanje `>` izvršava lokalni shell, pa je datoteka na računalu u
 `backup/eventhub_backup.sql`, a ne u kontejneru ili Docker volumenu.
@@ -184,9 +184,10 @@ stvarni ispis je ovdje dokumentiran.
 
 ## 4. Read-only korisnik
 
-Korisnik se stvara prilikom inicijalizacije praznog volumena u
-[`init/05_users.sh`](../init/05_users.sh). Skripta preuzima lozinku iz
-`EVENTHUB_REPORT_PASSWORD`, izvršava `CREATE USER IF NOT EXISTS` i dodjeljuje:
+Korisnika stvara Liquibase kroz
+[`migrations/005-users.sql`](../migrations/005-users.sql). Lozinku iz
+`EVENTHUB_REPORT_PASSWORD` Compose prenosi u secrets datoteku.
+[`migrations/005-grants.sql`](../migrations/005-grants.sql) dodjeljuje:
 
 ```sql
 GRANT SELECT, SHOW VIEW ON eventhub.* TO 'eventhub_report'@'%';

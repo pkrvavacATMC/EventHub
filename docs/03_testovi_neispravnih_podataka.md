@@ -1,6 +1,6 @@
 # Task 3 – Testovi neispravnih podataka i očekivano ponašanje
 
-Skripta: `tests/01_invalid_data.sql` (pokreće se nakon `init/*` i `seed/01_seed.sql`).
+Skripta: `tests/01_invalid_data.sql` (pokreće se nakon Liquibase migracija i `seed/01_seed.sql`).
 
 Svaki test pokušava neispravnu operaciju i provjerava da ju je baza **odbila** s očekivanim kodom greške i porukom. Direktni `INSERT`/`UPDATE`/`DELETE` izvršavaju se u transakciji koja se uvijek poništava, a pozivi procedura moraju pasti, pa testovi ne mijenjaju podatke. Na kraju skripta provjerava da su brojači zauzeća i dalje usklađeni (`v_reserved_check` = 0 redaka).
 

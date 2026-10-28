@@ -14,14 +14,30 @@ U `.env` postavi tri vlastite, različite lozinke:
 Ako `.env` već postoji, uredi ga bez ponovnog kopiranja.
 
 ```bash
-docker compose up -d --wait --wait-timeout 120
-docker compose ps
+docker compose up -d
+docker compose ps -a
+docker compose logs liquibase
 ```
 
 Servis `db` treba imati status `healthy`. Port `3306` mora biti slobodan.
 Za dijagnostiku: `docker compose logs db`.
-Na prvom pokretanju skripte iz `init/` automatski stvaraju bazu `eventhub`,
-tablice, funkcije, triggere, procedure, viewove i korisnike.
+Compose pričeka spremnost MariaDB-a i pokrene Liquibase `update`.
+MariaDB pri prvom pokretanju stvara praznu bazu `eventhub`, a Liquibase stvara
+korisnike, tablice, funkcije, triggere, procedure, event, viewove i ovlasti.
+Kod postojećeg volumena primjenjuje samo još neizvršene migracije.
+Nakon uspjeha servis `liquibase` ima status `Exited (0)`.
+
+Nakon `git pull` koji donosi nove migracije pokreni `docker compose up -d`.
+Za izričito ponovno izvršavanje provjere nad već spremnom bazom koristi:
+
+```bash
+docker compose run --rm --no-deps liquibase update
+```
+
+Sam `docker compose restart db` ne pokreće migracije.
+
+SQL migracije i prijelaz postojeće baze opisani su u
+[Liquibase — migracije](docs/liquibase.md).
 
 ## Spajanje i provjera
 
@@ -80,7 +96,7 @@ Podaci su u Docker volumenu `db_data` i ostaju nakon restarta ili
 
 ```bash
 docker compose down
-docker compose up -d --wait --wait-timeout 120
+docker compose up -d
 ```
 
 Za provjeru postojanosti nakon seeda zabilježi rezultat
@@ -88,8 +104,7 @@ Za provjeru postojanosti nakon seeda zabilježi rezultat
 `docker compose restart db`, pričekaj status `healthy` i ponovi upit.
 
 **Nemoj koristiti `docker compose down -v` ako želiš sačuvati podatke:**
-briše volumen s obje baze. Init skripte izvršavaju se samo na praznom volumenu;
-promjena `.env` ne mijenja već stvorene lozinke.
+briše volumen s obje baze. Promjena `.env` ne mijenja već stvorene lozinke.
 
 `.env` je ignoriran Gitom. Commitaj samo `.env.example` bez stvarnih lozinki.
 

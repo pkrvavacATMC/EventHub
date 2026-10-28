@@ -200,7 +200,7 @@ h = H.append
 h("""-- =====================================================================
 -- EventHub - seed/01_seed.sql : realni testni podaci (task 3 i 4)
 --
--- Pokretanje (na SVJEZOJ bazi, odmah nakon init skripti):
+-- Pokretanje (na SVJEZOJ bazi, odmah nakon Liquibase migracija):
 --   docker exec -i eventhub-db sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" eventhub' < seed/01_seed.sql
 --
 -- Kako radi:
@@ -225,7 +225,7 @@ DELIMITER //
 CREATE PROCEDURE seed_assert_empty()
 BEGIN
   IF (SELECT COUNT(*) FROM event) > 0 OR (SELECT COUNT(*) FROM buyer) > 0 THEN
-    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Seed se pokrece samo na praznoj bazi (docker compose down -v, pa up)';
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Seed se pokrece samo na praznoj bazi; postojeci podaci se ne brisu';
   END IF;
 END//
 

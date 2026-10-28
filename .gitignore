@@ -4,3 +4,7 @@ backup/*.sql.gz
 
 # Lokalni zapis gresaka mjerenja (runner ga ponovno stvara).
 perf/results/series.stderr
+
+# Lokalni Python bytecode.
+__pycache__/
+*.pyc
