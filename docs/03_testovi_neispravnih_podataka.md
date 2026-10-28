@@ -123,4 +123,20 @@ U svim slučajevima **operacija se ne izvrši ni djelomično**: naredba (ili cij
 
 ## Sažetak
 
-**73 / 73 testova prolazi**, 0 pada. Brojači zauzeća nakon testova: usklađeni.
+**79 / 79 testova prolazi**, 0 pada. Brojači zauzeća nakon testova: usklađeni.
+
+## Vremenske granice
+
+Testovi koriste fiksno vrijeme sesije `2026-10-28 12:00:00` (UTC+01:00),
+a na kraju vraćaju stvarno vrijeme i prethodnu vremensku zonu.
+Postojeći test 61 provjerava odbijanje rezervacije za prošli događaj.
+Realni seed sadrži uspješne kupnje prije početka događaja.
+
+| # | Test | Očekivano |
+|---|---|---|
+| 74 | Novi događaj sekundu u prošlosti | 1644: Event mora biti u buducnosti |
+| 75 | Novi događaj točno sada | 1644: Event mora biti u buducnosti |
+| 76 | Novi događaj sekundu u budućnosti | Uspjeh, zatim ROLLBACK |
+| 77 | Pomicanje događaja točno na sada | 1644: Novi datum eventa mora biti u buducnosti |
+| 78 | Pomicanje događaja u budućnost | Uspjeh, zatim ROLLBACK |
+| 79 | Rezervacija točno na početku događaja | 1644: Event je vec poceo ili prosao |

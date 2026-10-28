@@ -4,7 +4,8 @@
 -- Pokretanje (nakon init + seed):
 --   docker exec -i eventhub-db sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" eventhub' < tests/01_invalid_data.sql
 --
--- Svaki test pokusa neispravnu operaciju i provjerava da ju je baza ODBILA
+-- Negativni testovi provjeravaju odbijanje, a pozitivni vremenski testovi prihvacanje.
+-- Svaki negativni test provjerava da je baza odbila operaciju
 -- s ocekivanom greskom (kod + dio poruke). Rezultat: PASS / FAIL.
 --
 -- Testovi NE mijenjaju podatke:
@@ -19,6 +20,11 @@
 --   4025  CHECK ogranicenje      1644  poslovno pravilo (SIGNAL u triggeru/proceduri)
 -- =====================================================================
 USE eventhub;
+
+-- Fiksno vrijeme vrijedi samo u ovoj sesiji: testovi ne ovise o datumu pokretanja.
+SET @test_previous_time_zone = @@session.time_zone;
+SET time_zone = '+01:00';
+SET timestamp = UNIX_TIMESTAMP('2026-10-28 12:00:00');
 
 -- ---------------------------------------------------------------------
 -- Pomocni alat za testiranje
@@ -43,7 +49,7 @@ CREATE PROCEDURE t_expect(IN p_kat VARCHAR(30), IN p_opis VARCHAR(120),
                           IN p_errno INT, IN p_text VARCHAR(160))
 BEGIN
   DECLARE v_errno INT DEFAULT 0;
-  DECLARE v_msg VARCHAR(400) DEFAULT '(nema greske - operacija je PROSLA!)';
+  DECLARE v_msg VARCHAR(400) DEFAULT 'Operacija je prosla';
   DECLARE v_tx BOOLEAN DEFAULT (p_sql NOT LIKE 'CALL%');
 
   IF v_tx THEN START TRANSACTION; END IF;
@@ -306,6 +312,33 @@ CALL t_expect('PROCEDURA', 'Istek potvrdene rezervacije', NULL,
 CALL t_expect('PROCEDURA', 'Nepoznat razlog otkazivanja', NULL,
   'CALL release_reservation(@confirmed_res, ''nesto'')', 1644, 'Razlog otkazivanja mora biti');
 
+-- =====================================================================
+-- 7. Vremenske granice: proslost, sadasnjost i buducnost
+-- Uspjesni INSERT/UPDATE takoder se ponistavaju pomocu t_expect.
+-- =====================================================================
+CALL t_expect('VRIJEME', 'Novi event sekundu u proslosti', NULL,
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (''Test vrijeme'', NOW() - INTERVAL 1 SECOND, 10, 1, 1)',
+  1644, 'Event mora biti u buducnosti');
+CALL t_expect('VRIJEME', 'Novi event tocno sada', NULL,
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (''Test vrijeme'', NOW(), 10, 1, 1)',
+  1644, 'Event mora biti u buducnosti');
+CALL t_expect('VRIJEME', 'Novi event sekundu u buducnosti', NULL,
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (''Test vrijeme'', NOW() + INTERVAL 1 SECOND, 10, 1, 1)',
+  0, '');
+CALL t_expect('VRIJEME', 'Pomicanje eventa tocno na sada', NULL,
+  'UPDATE event SET event_date = NOW() WHERE id = @ev_future',
+  1644, 'Novi datum eventa mora biti u buducnosti');
+CALL t_expect('VRIJEME', 'Pomicanje eventa u buducnost', NULL,
+  'UPDATE event SET event_date = NOW() + INTERVAL 1 DAY WHERE id = @ev_future',
+  0, '');
+
+-- Postojeci test 61 odbija rezervaciju u proslosti; ovdje testiramo sam pocetak.
+SET timestamp = (SELECT UNIX_TIMESTAMP(event_date) FROM event WHERE id = @ev_future);
+CALL t_expect('VRIJEME', 'Rezervacija tocno na pocetku eventa', NULL,
+  'CALL create_reservation(@buyer, @ev_future, CONCAT(''[{"category_id":'', @cat_parter_ny, '',"quantity":1}]''), 0, @x)',
+  1644, 'Event je vec poceo ili prosao');
+SET timestamp = UNIX_TIMESTAMP('2026-10-28 12:00:00');
+
 -- ---------------------------------------------------------------------
 -- Rezultati
 -- ---------------------------------------------------------------------
@@ -322,3 +355,5 @@ SELECT 'UKUPNO', SUM(rezultat = 'PASS'), SUM(rezultat = 'FAIL') FROM test_result
 SELECT COUNT(*) AS neuskladjeni_brojaci FROM v_reserved_check;
 
 DROP PROCEDURE t_expect;
+SET timestamp = DEFAULT;
+SET time_zone = @test_previous_time_zone;
