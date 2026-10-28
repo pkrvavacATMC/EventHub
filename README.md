@@ -1,17 +1,24 @@
-# EventHub — lokalna MariaDB baza
+# EventHub
 
-Potrebni su Docker s Compose dodatkom i SQL klijent (npr. DBeaver).
-Naredbe pokreni iz korijena projekta; primjeri koriste Bash/WSL.
+EventHub is a MariaDB database for event ticket reservations, seating, ticket issuance, check-in, cancellations, and refunds. Business rules live in SQL procedures, triggers, and constraints; this repository does not include a web application.
 
-## Pokretanje
+## Database diagram
+
+![EventHub entity relationship diagram](eventhub-diagram.png)
+
+[Open full-size diagram](eventhub-diagram.png) · [Database structure and decisions](docs/02_database_structure.md)
+
+## Requirements and setup
+
+Use Docker with Docker Compose v2, Git, and Bash (Linux or WSL). Python 3 is needed for performance measurements; DBeaver is optional. Enable Docker Desktop WSL integration if Docker is unavailable in your distro. Port 3306 must be free.
+
+Clone this repository using its Git remote URL, enter its directory, then run:
 
 ```bash
 cp .env.example .env
 ```
 
-U `.env` postavi tri vlastite, različite lozinke:
-`MARIADB_ROOT_PASSWORD`, `EVENTHUB_APP_PASSWORD` i `EVENTHUB_REPORT_PASSWORD`.
-Ako `.env` već postoji, uredi ga bez ponovnog kopiranja.
+Set three different passwords in `.env`: `MARIADB_ROOT_PASSWORD`, `EVENTHUB_APP_PASSWORD`, and `EVENTHUB_REPORT_PASSWORD`. Do not overwrite an existing `.env` or commit passwords.
 
 ```bash
 docker compose up -d
@@ -19,102 +26,54 @@ docker compose ps -a
 docker compose logs liquibase
 ```
 
-Servis `db` treba imati status `healthy`. Port `3306` mora biti slobodan.
-Za dijagnostiku: `docker compose logs db`.
-Compose pričeka spremnost MariaDB-a i pokrene Liquibase `update`.
-MariaDB pri prvom pokretanju stvara praznu bazu `eventhub`, a Liquibase stvara
-korisnike, tablice, funkcije, triggere, procedure, event, viewove i ovlasti.
-Kod postojećeg volumena primjenjuje samo još neizvršene migracije.
-Nakon uspjeha servis `liquibase` ima status `Exited (0)`.
+Wait for `db` to become healthy and `liquibase` to exit with code 0. MariaDB 10.11 stores data in a persistent volume; Liquibase 4.33.0 installs the schema, routines, views, users, and permissions. For failures, inspect `docker compose logs db` and the Liquibase log before proceeding.
 
-Nakon `git pull` koji donosi nove migracije pokreni `docker compose up -d`.
-Za izričito ponovno izvršavanje provjere nad već spremnom bazom koristi:
-
-```bash
-docker compose run --rm --no-deps liquibase update
-```
-
-Sam `docker compose restart db` ne pokreće migracije.
-
-SQL migracije i prijelaz postojeće baze opisani su u
-[Liquibase — migracije](docs/liquibase.md).
-
-## Spajanje i provjera
-
-U DBeaveru napravi MariaDB vezu:
-
-| Postavka | Vrijednost |
-|---|---|
-| Host | `127.0.0.1` |
-| Port | `3306` |
-| Database | `eventhub` |
-| Username | `eventhub_app` |
-| Password | vrijednost `EVENTHUB_APP_PASSWORD` iz `.env` |
-
-Izvrši:
-
-```sql
-SELECT CURRENT_USER();
-SELECT * FROM v_event_capacity LIMIT 5;
-```
-
-Na praznoj bazi drugi upit vraća prazan rezultat. `eventhub_app` smije pozivati
-poslovne procedure i čitati izvještajne viewove. Za čitanje svih tablica koristi
-`eventhub_report` i `EVENTHUB_REPORT_PASSWORD`; za administraciju `root` i
-`MARIADB_ROOT_PASSWORD`.
-
-Ista provjera kroz SQL klijent unutar kontejnera:
+Connect to `127.0.0.1:3306`, database `eventhub`. Use `eventhub_app` with its configured password for business procedures and permitted views, `eventhub_report` for read-only table access, or `root` for setup and administration.
 
 ```bash
 docker compose exec -T db sh -c 'MYSQL_PWD="$EVENTHUB_APP_PASSWORD" mariadb -ueventhub_app eventhub -e "SELECT CURRENT_USER(); SELECT * FROM v_event_capacity LIMIT 5;"'
 ```
 
-## Testni podaci (opcionalno)
-
-Na praznoj bazi jednom pokreni realni seed (8 događaja i 175 rezervacija):
+An empty result is expected before loading data. On a fresh database, load the seed once:
 
 ```bash
 docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot eventhub' < seed/01_seed.sql
 ```
 
-Za zasebnu performance bazu:
+The seed produces 8 events and 175 reservations using business procedures and simulated dates in 2026. It is not a repeatable reset script.
+
+## Reproduce the demonstration
+
+Follow the [presentation walkthrough](docs/09_presentation.md). Run seed report verification and create the performance copy before adding demo records. Existing recorded results describe their original datasets, not every later database state.
+
+| Requirement | Source |
+| --- | --- |
+| ERD, relationships and trade-offs | [Database guide](docs/02_database_structure.md) |
+| Successful and rejected reservation | [Demo SQL](tests/09_presentation.sql) |
+| Transactions | [Tests](tests/05_transactions.sql), [recorded results](docs/05_transactions_output.md) |
+| Concurrent booking | [Script](tests/06_concurrency.sh), [recorded results](docs/06_concurrency_output.md) |
+| Reporting | [SQL](reports/01_reports.sql), [verification](reports/02_verify_reports.sql) |
+| Optimization | [Measured results](docs/07_performanse.md), `perf/results/series.tsv` |
+
+## Repository map
+
+- `migrations/`: Liquibase changelog and schema/business logic.
+- `seed/`: deterministic example data.
+- `tests/`: integrity, transaction, concurrency, permission, and presentation scenarios.
+- `reports/`: eight reporting queries and seed assertions.
+- `perf/`: isolated performance database setup, workloads, runner, and raw evidence.
+- `docs/`: guides and historical test evidence (older evidence is in Croatian).
+
+## Maintenance
+
+Run commands from the repository root. After pulling new migrations, run `docker compose up -d`; explicitly apply pending changes to an already running database with:
 
 ```bash
-bash perf/00_create_perf_db.sh
-docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot' < perf/01_generate_100k.sql
+docker compose run --rm --no-deps liquibase update
 ```
 
-Prva naredba briše postojeću `eventhub_perf` i kopira glavnu bazu u nju.
-Druga dodaje 100.000 rezervacija (uz 175 kopiranih iz realnog seeda).
-Glavna baza ostaje nepromijenjena. Za vezu na `eventhub_perf` koristi isti
-host, port i root pristup; mijenja se samo naziv baze.
+Restarting MariaDB alone does not apply migrations. See [migration details](docs/liquibase.md).
 
-## Pohrana i zaustavljanje
+`docker compose down` stops the services while retaining data; `docker compose up -d` starts them again. **`docker compose down -v` deletes the persistent volume and both databases.** Changing `.env` does not update passwords already installed in an existing database.
 
-Podaci su u Docker volumenu `db_data` i ostaju nakon restarta ili
-`docker compose down`. Zaustavljanje i ponovno pokretanje:
-
-```bash
-docker compose down
-docker compose up -d
-```
-
-Za provjeru postojanosti nakon seeda zabilježi rezultat
-`SELECT COUNT(*) FROM reservation;` kroz korisnika `eventhub_report`, pokreni
-`docker compose restart db`, pričekaj status `healthy` i ponovi upit.
-
-**Nemoj koristiti `docker compose down -v` ako želiš sačuvati podatke:**
-briše volumen s obje baze. Promjena `.env` ne mijenja već stvorene lozinke.
-
-`.env` je ignoriran Gitom. Commitaj samo `.env.example` bez stvarnih lozinki.
-
-## Izvještaji
-
-Osam izvještaja i PASS/FAIL provjere za realni seed nalaze se u `reports/`.
-Naredbe, definicije i očekivani rezultati: [Task 4 — Izvještaji](docs/04_izvjestaji.md).
-
-## Analiza performansi (Task 7)
-
-Ponovljiva mjerenja nad 100.175 rezervacija, EXPLAIN planovi, odluke o indeksima,
-trosak pisanja/prostora i rezultati regresijskih provjera:
-[Task 7 — Performanse](docs/07_performanse.md).
+For a persistence check, compare `SELECT COUNT(*) FROM reservation` before and after `docker compose restart db`, waiting for health before reconnecting. Keep real credentials outside Git.
