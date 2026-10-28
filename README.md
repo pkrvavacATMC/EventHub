@@ -97,14 +97,3 @@ promjena `.env` ne mijenja već stvorene lozinke.
 
 Osam izvještaja i PASS/FAIL provjere za realni seed nalaze se u `reports/`.
 Naredbe, definicije i očekivani rezultati: [Task 4 — Izvještaji](docs/04_izvjestaji.md).
-
-## Nadogradnja postojeće baze
-
-Za postojeću bazu `eventhub` primijeni zaštite otkazivanja i dopunu Q1 bez
-brisanja podataka (za svježu bazu već su u `init/`):
-
-```bash
-docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot eventhub' < migrations/001_cancellation_guards.sql
-```
-
-Skripta mijenja samo trigger i view u `eventhub`; `eventhub_perf` ne mijenja.
