@@ -102,14 +102,17 @@ BEGIN
   DECLARE v_errno INT;
   DECLARE v_msg VARCHAR(512);
 
-  -- Svaka greska: ROLLBACK + ciscenje. Krsenja zadnje linije obrane (UNIQUE/CHECK)
-  -- pretvaraju se u razumljive poruke.
+  -- Svaka greska: ROLLBACK. Krsenja zadnje linije obrane (UNIQUE/CHECK)
+  -- pretvaraju se u razumljive poruke, a sve ostalo se prosljeduje (RESIGNAL).
+  -- Privremene tablice se NE brisu ovdje: DROP ... IF EXISTS nepostojece tablice
+  -- stvara napomenu koja bi prebrisala originalnu gresku prije RESIGNAL-a.
+  -- Brisu se na pocetku sljedeceg poziva (ili zatvaranjem sesije).
+  -- Privremene tablice su InnoDB (transakcijske), pa ni ROLLBACK ne stvara
+  -- upozorenje ("non-transactional tables couldn't be rolled back").
   DECLARE EXIT HANDLER FOR SQLEXCEPTION
   BEGIN
     GET DIAGNOSTICS CONDITION 1 v_errno = MYSQL_ERRNO, v_msg = MESSAGE_TEXT;
     ROLLBACK;
-    DROP TEMPORARY TABLE IF EXISTS tmp_items;
-    DROP TEMPORARY TABLE IF EXISTS tmp_seats;
     SET p_reservation_id = NULL;
     IF v_errno = 1062 AND v_msg LIKE '%uq_active_seat%' THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Neko od sjedala je vec zauzeto';
@@ -132,8 +135,8 @@ BEGIN
   DROP TEMPORARY TABLE IF EXISTS tmp_seats;
   CREATE TEMPORARY TABLE tmp_items (
     idx INT PRIMARY KEY, category_id INT, quantity INT,
-    seating_type VARCHAR(10), price DECIMAL(10,2), fee DECIMAL(10,2)) ENGINE=MEMORY;
-  CREATE TEMPORARY TABLE tmp_seats (idx INT, seat_id INT) ENGINE=MEMORY;
+    seating_type VARCHAR(10), price DECIMAL(10,2), fee DECIMAL(10,2)) ENGINE=InnoDB;
+  CREATE TEMPORARY TABLE tmp_seats (idx INT, seat_id INT) ENGINE=InnoDB;
 
   INSERT INTO tmp_items (idx, category_id, quantity)
   SELECT jt.idx, jt.category_id, jt.quantity
@@ -519,23 +522,18 @@ END//
 
 -- ---------------------------------------------------------------------
 -- expire_reservations: otkazuje istekle pending rezervacije (razlog 'expired').
--- Greska na jednoj ne zaustavlja ostale, ali se zapisuje u job_error_log.
+-- Greska na jednoj rezervaciji ne zaustavlja ostale: ta se rezervacija preskace
+-- i ponovno pokusava sljedece minute (npr. kod isteka cekanja na lock ili utrke
+-- s potvrdom). Greske se namjerno ne biljeze - poznato ogranicenje.
 -- ---------------------------------------------------------------------
 CREATE PROCEDURE expire_reservations()
 BEGIN
   DECLARE done INT DEFAULT 0;
   DECLARE v_id INT DEFAULT NULL;
-  DECLARE v_errno INT;
-  DECLARE v_msg VARCHAR(512);
   DECLARE cur CURSOR FOR
     SELECT id FROM reservation WHERE status = 'pending' AND expires_at <= NOW();
   DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
-  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
-  BEGIN
-    GET DIAGNOSTICS CONDITION 1 v_errno = MYSQL_ERRNO, v_msg = MESSAGE_TEXT;
-    INSERT INTO job_error_log (job_name, reservation_id, error_code, message)
-    VALUES ('expire_reservations', v_id, v_errno, v_msg);
-  END;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;   -- preskoci i nastavi
 
   OPEN cur;
   read_loop: LOOP

@@ -207,14 +207,3 @@ CREATE TABLE ticket (
     REFERENCES reservation_seat (id, reservation_item_id) ON DELETE RESTRICT,
   INDEX idx_ticket_cancelled_at (cancelled_at)
 ) ENGINE=InnoDB;
-
--- Zapis gresaka pozadinskih poslova (npr. istek rezervacija)
-CREATE TABLE job_error_log (
-  id             INT AUTO_INCREMENT PRIMARY KEY,
-  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  job_name       VARCHAR(100) NOT NULL,
-  reservation_id INT NULL,
-  error_code     INT NULL,
-  message        VARCHAR(512) NULL,
-  INDEX idx_job_error_created (created_at)
-) ENGINE=InnoDB;
