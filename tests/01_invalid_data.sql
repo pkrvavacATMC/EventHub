@@ -154,7 +154,7 @@ CALL t_expect('CHECK', 'Otkazana rezervacija bez razloga', @setup_pending,
   'UPDATE reservation SET status = ''cancelled'', cancelled_at = NOW() WHERE id = LAST_INSERT_ID()', 4025, 'chk_res_cancel_reason');
 CALL t_expect('CHECK', 'Potvrdena rezervacija ne moze "isteci"', NULL,
   'UPDATE reservation SET status = ''cancelled'', cancelled_at = NOW(), cancel_reason = ''expired'' WHERE id = @confirmed_res',
-  4025, 'chk_res_expired_unconfirmed');
+  1644, 'Rezervacija ima vazece karte');
 CALL t_expect('CHECK', 'Rok rezervacije prije kreiranja', NULL,
   'INSERT INTO reservation (event_id, buyer_id, created_at, expires_at) VALUES (@ev_future, @buyer, NOW(), NOW() - INTERVAL 1 MINUTE)',
   4025, 'chk_res_expires');
@@ -338,6 +338,31 @@ CALL t_expect('VRIJEME', 'Rezervacija tocno na pocetku eventa', NULL,
   'CALL create_reservation(@buyer, @ev_future, CONCAT(''[{"category_id":'', @cat_parter_ny, '',"quantity":1}]''), 0, @x)',
   1644, 'Event je vec poceo ili prosao');
 SET timestamp = UNIX_TIMESTAMP('2026-10-28 12:00:00');
+
+-- Direktni UPDATE ne smije zaobici redoslijed poslovnih procedura.
+CALL t_expect('PRAVILO', 'Direktno otkazivanje potvrdene rezervacije s vazecim kartama', NULL,
+  'UPDATE reservation SET status = ''cancelled'', cancelled_at = NOW(), cancel_reason = ''buyer'' WHERE id = @confirmed_res',
+  1644, 'Rezervacija ima vazece karte');
+
+-- Fixture u transakciji t_expect; nema COMMIT-a i sve se ponistava.
+DELIMITER //
+CREATE PROCEDURE t_setup_pending_hold()
+BEGIN
+  INSERT INTO reservation(event_id, buyer_id, expires_at)
+  VALUES (@ev_future, @buyer, NOW() + INTERVAL 15 MINUTE);
+  SET @pending_hold_res = LAST_INSERT_ID();
+  INSERT INTO reservation_item(reservation_id, event_id, category_id, quantity, price_per_ticket, service_fee_per_ticket)
+  SELECT @pending_hold_res, @ev_future, id, 1, price, service_fee FROM ticket_category WHERE id=@cat_vip_ny;
+  SET @pending_hold_item = LAST_INSERT_ID();
+  INSERT INTO reservation_seat(reservation_item_id, category_id, seat_id)
+  VALUES (@pending_hold_item, @cat_vip_ny, @free_seat);
+END//
+DELIMITER ;
+CALL t_expect('PRAVILO', 'Direktno otkazivanje pending rezervacije s aktivnim holdom',
+  'CALL t_setup_pending_hold()',
+  'UPDATE reservation SET status = ''cancelled'', cancelled_at = NOW(), cancel_reason = ''buyer'' WHERE id = @pending_hold_res',
+  1644, 'Rezervacija ima aktivne holdove sjedala');
+DROP PROCEDURE t_setup_pending_hold;
 
 -- ---------------------------------------------------------------------
 -- Rezultati

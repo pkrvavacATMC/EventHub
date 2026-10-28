@@ -184,6 +184,19 @@ BEGIN
   IF OLD.status = 'confirmed' AND NEW.status = 'pending' THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Nedozvoljen prijelaz statusa confirmed -> pending';
   END IF;
+  -- Procedure prvo otkazuju karte / oslobadjaju holdove, tek zatim rezervaciju.
+  IF NEW.status = 'cancelled' AND OLD.status = 'confirmed' AND EXISTS (
+    SELECT 1 FROM ticket t JOIN reservation_item ri ON ri.id = t.reservation_item_id
+     WHERE ri.reservation_id = OLD.id AND t.cancelled_at IS NULL
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Rezervacija ima vazece karte; prvo otkazite karte';
+  END IF;
+  IF NEW.status = 'cancelled' AND OLD.status = 'pending' AND EXISTS (
+    SELECT 1 FROM reservation_seat rs JOIN reservation_item ri ON ri.id = rs.reservation_item_id
+     WHERE ri.reservation_id = OLD.id AND rs.released_at IS NULL
+  ) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Rezervacija ima aktivne holdove sjedala; prvo oslobodite sjedala';
+  END IF;
   IF OLD.confirmed_at IS NOT NULL AND NOT (NEW.confirmed_at <=> OLD.confirmed_at) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'confirmed_at se ne smije mijenjati';
   END IF;

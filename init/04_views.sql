@@ -61,7 +61,7 @@ SELECT e.id AS event_id, e.organizer_id, e.name AS event_name,
                FROM reservation r JOIN reservation_item ri ON ri.reservation_id = r.id
               GROUP BY r.event_id) i ON i.event_id = e.id
   LEFT JOIN (SELECT r.event_id,
-                    SUM(tk.cancelled_at IS NULL)     AS confirmed_tickets,
+                    SUM(r.status = 'confirmed' AND tk.cancelled_at IS NULL) AS confirmed_tickets,
                     SUM(tk.cancelled_at IS NOT NULL) AS cancelled_tickets
                FROM ticket tk
                JOIN reservation_item ri ON ri.id = tk.reservation_item_id

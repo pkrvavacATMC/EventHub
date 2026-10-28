@@ -38,7 +38,7 @@ U svim slučajevima **operacija se ne izvrši ni djelomično**: naredba (ili cij
 | 14 | Stavka s negativnom cijenom | 4025: chk_item_price | 4025: CHECK `chk_item_price` | ✅ PASS |
 | 15 | Potvrdena rezervacija bez datuma potvrde | 4025: chk_res_status_dates | 4025: CHECK `chk_res_status_dates` | ✅ PASS |
 | 16 | Otkazana rezervacija bez razloga | 4025: chk_res_cancel_reason | 4025: CHECK `chk_res_cancel_reason` | ✅ PASS |
-| 17 | Potvrdena rezervacija ne moze "isteci" | 4025: chk_res_expired_unconfirmed | 4025: CHECK `chk_res_expired_unconfirmed` | ✅ PASS |
+| 17 | Potvrdena rezervacija ne moze "isteci" | 1644: Rezervacija ima vazece karte | 1644: Rezervacija ima vazece karte; prvo otkazite karte | ✅ PASS |
 | 18 | Rok rezervacije prije kreiranja | 4025: chk_res_expires | 4025: CHECK `chk_res_expires` | ✅ PASS |
 | 19 | Povrat bez otkazivanja karte | 4025: chk_ticket_refund_pair | 4025: CHECK `chk_ticket_refund_pair` | ✅ PASS |
 | 20 | Karta iskoristena i otkazana | 4025: chk_ticket_used_cancel | 4025: CHECK `chk_ticket_used_cancel` | ✅ PASS |
@@ -123,7 +123,7 @@ U svim slučajevima **operacija se ne izvrši ni djelomično**: naredba (ili cij
 
 ## Sažetak
 
-**79 / 79 testova prolazi**, 0 pada. Brojači zauzeća nakon testova: usklađeni.
+**81 / 81 testova prolazi**, 0 pada. Brojači zauzeća nakon testova: usklađeni.
 
 ## Vremenske granice
 
@@ -140,3 +140,25 @@ Realni seed sadrži uspješne kupnje prije početka događaja.
 | 77 | Pomicanje događaja točno na sada | 1644: Novi datum eventa mora biti u buducnosti |
 | 78 | Pomicanje događaja u budućnost | Uspjeh, zatim ROLLBACK |
 | 79 | Rezervacija točno na početku događaja | 1644: Event je vec poceo ili prosao |
+
+## Zaštita direktnog otkazivanja
+
+| # | Test | Očekivano |
+|---|---|---|
+| 80 | Direktno otkazivanje potvrđene rezervacije s važećim kartama | 1644: Rezervacija ima vazece karte |
+| 81 | Direktno otkazivanje pending rezervacije s aktivnim holdom sjedala | 1644: Rezervacija ima aktivne holdove sjedala |
+
+Trigger provjerava stanje prije promjene statusa. Zato i test 17 sada prvo
+zaustavlja trigger, prije provjere CHECK ograničenja. Test 81 stvara fixture
+unutar transakcije koja se poništava.
+
+`cancel_ticket` prvo otkazuje kartu, oslobađa sjedalo i smanjuje brojač; tek
+nakon posljednje karte otkazuje rezervaciju. `release_reservation` prvo
+smanjuje brojače i oslobađa holdove, zatim otkazuje pending rezervaciju.
+Provjereni su djelomično otkazivanje, posljednja karta, pending otkazivanje
+i istek sjedala, uz usklađene brojače.
+
+Ove zaštite ne pretvaraju svaki administratorski UPDATE u poslovnu operaciju:
+pending stajaća rezervacija nema hold sjedala, pa je za ispravno smanjenje
+`reserved` i dalje potrebno koristiti procedure. Aplikacijski korisnik nema
+ovlasti za direktan UPDATE tablica.
