@@ -285,7 +285,7 @@ Ne zamjenjuje glavnu ni performance bazu, ali osvježava `tests/results/`; ne po
 | Konkurentnost | 4/4; deset veza za zadnju kartu | [konkurentnost](docs/06_concurrency_output.md) |
 | UTC/DST matrica | 24 create, 12 confirm, 72 refund, 48 check-in i 12 simulacija sata | [završna validacija](docs/10_schema_validation.md) |
 | Rok preko DST prijelaza | 6/6; 900 sekundi u tri zone | [validacija](docs/10_schema_validation.md), [dokaz](tests/results/dst_expiry.txt) |
-| Backup/restore | 12 tablica, isti checksumi i epoch vrijednosti vremenskih stupaca | [administracija](docs/08_administracija.md) |
+| Sigurnosna kopija i povrat podataka | 12 tablica, isti checksumi i epoch vrijednosti vremenskih stupaca | [administracija](docs/08_administracija.md) |
 | Potpuni rollback i ponovna instalacija | 56/56 | [validacija](docs/10_schema_validation.md) |
 | Prezentacijski neuspješan poziv | Očekivani 1644, zauzeće ostaje 8/10 | [prezentacija](docs/09_presentation.md) |
 | Indeksi i performanse | Zasebno mjerenje na 100.175 rezervacija | [performanse](docs/07_performanse.md) |
@@ -337,7 +337,7 @@ python3 perf/summarize.py --document
 Zadnja naredba ispisuje analizu; sirovi EXPLAIN/ANALYZE planovi i vremena su u [series.tsv](perf/results/series.tsv).
 Runner nakon mjerenja vraća konfiguraciju B, a manifest bilježi hashove sheme, generatora i upita te stvarne tipove stupaca.
 
-## Backup i restore
+## Sigurnosna kopija i povrat podataka
 
 Logički backup uključuje strukturu, podatke, poglede, procedure, funkcije, triggere i zakazane evente:
 
@@ -375,7 +375,7 @@ Postupak i usporedbe svih tablica/checksuma/vremenskih vrijednosti: [backup, res
 | [05_transactions_output.md](docs/05_transactions_output.md) | Rezultate uspješnih i neuspješnih kupnji, COMMIT-a i ROLLBACK-a. |
 | [06_concurrency_output.md](docs/06_concurrency_output.md) | Četiri scenarija zadnje karte i dokaze konkurentnih sesija. |
 | [07_performanse.md](docs/07_performanse.md) | EXPLAIN/ANALYZE planove, vremena, prostor i kompromise odabranih indeksa. |
-| [08_administracija.md](docs/08_administracija.md) | Backup/restore, usporedbe podataka i provjeru ovlasti. |
+| [08_administracija.md](docs/08_administracija.md) | Sigurnosna kopija i povrat podataka, usporedbe podataka i provjeru ovlasti. |
 | [09_presentation.md](docs/09_presentation.md) | Redoslijed demonstracije za prezentaciju projekta. |
 | [10_schema_validation.md](docs/10_schema_validation.md) | Završnu pokrivenost nove sheme, ispravke i reprodukciju provjera. |
 | [render_docs.py](docs/render_docs.py) | Generator dokumenata iz provjerenih dokaza; provjerava hashove izvora i rezultata te čuva postojeći PNG dijagram. |

@@ -15,7 +15,7 @@ Sedam SQL datoteka, 56 changesetova; 006 nadogradjuje buyer bez promjene prethod
 | Rok preko samog DST prijelaza | 6/6; 900 sekundi u tri zone |
 | Guardovi / povrat zone na gresci | 6/6 i 5/5 |
 | Ovlasti i stvarni app pozivi | Pet procedura prolazi; nedopusteni upisi/citanje odbijeni |
-| Backup/restore | 12 tablica; svi checksumovi i epoch vrijednosti isti |
+| Sigurnosna kopija i povrat podataka | 12 tablica; svi checksumovi i epoch vrijednosti isti |
 | Scheduler | Stvarni UTC event otkazao isteklu rezervaciju; rok 900 sekundi |
 | Seed | 8 evenata, 40 kupaca, 175 rezervacija; external_id je NULL |
 | Potpuni rollback i ponovna instalacija | 56/56 |

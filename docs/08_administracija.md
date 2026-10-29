@@ -1,8 +1,8 @@
-# Backup, restore i ovlasti
+# Sigurnosna kopija, povrat podataka i ovlasti
 
 Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
 
-Backup/restore je provjeren u izoliranom Compose okruzenju na novoj shemi, bez promjena glavne baze. Usporedjeni su svi reci preko CHECKSUM TABLE EXTENDED te UNIX_TIMESTAMP svih devet vremenskih stupaca.
+Izrada sigurnosne kopije i povrat podataka provjereni su u izoliranom Compose okruzenju na novoj shemi, bez promjena glavne baze. Usporedjeni su svi reci preko CHECKSUM TABLE EXTENDED te UNIX_TIMESTAMP svih devet vremenskih stupaca.
 
 | tablica | redaka | checksum jednak | epoch jednak |
 | --- | --- | --- | --- |
@@ -35,6 +35,6 @@ Svaki korak mora zavrsiti uspjesno. CREATE namjerno staje ako cilj vec postoji. 
 
 ## Ovlasti
 
-Read-only korisniku prolazi citanje; pet DML/DDL pokusaja odbijeno je s 1142, CALL s 1370. [Stvarni ispis](../tests/results/readonly.txt). Kao eventhub_app uspjesno je pozvano svih pet dopustenih procedura, a SELECT buyer i direktni UPDATE su odbijeni. [Pozivi](../tests/results/app_calls.txt), [SHOW GRANTS](../tests/results/grants.txt). Root se koristi za administraciju, ne za aplikaciju.
+Korisniku s ovlastima samo za čitanje prolazi citanje; pet DML/DDL pokusaja odbijeno je s 1142, CALL s 1370. [Stvarni ispis](../tests/results/readonly.txt). Kao eventhub_app uspjesno je pozvano svih pet dopustenih procedura, a SELECT buyer i direktni UPDATE su odbijeni. [Pozivi](../tests/results/app_calls.txt), [SHOW GRANTS](../tests/results/grants.txt). Root se koristi za administraciju, ne za aplikaciju.
 
 Automatska reprodukcija ukljucuje sve provjere: `python3 tests/test_database.py`. Ne oslanja se na nepracen backup/verify_restore.sql.

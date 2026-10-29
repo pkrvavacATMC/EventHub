@@ -1,10 +1,10 @@
-# Presentation walkthrough
+# Vodič za prezentaciju
 
-Run commands from the repository root after following the [README](../README.md). Read the [database guide](02_database_structure.md) first. Recorded outputs were regenerated for the current schema; see the [validation manifest](../tests/results/manifest.json).
+Naredbe pokreći iz korijena repozitorija nakon postavljanja prema [README-u](../README.md). Najprije pročitaj [opis baze](02_database_structure.md). Spremljeni rezultati ponovno su generirani za aktualnu shemu; pogledaj [manifest provjere](../tests/results/manifest.json).
 
-## 1. Prepare reports and performance data
+## 1. Priprema izvještaja i podataka za mjerenje performansi
 
-Run on the clean seed before demonstrations add records:
+Pokreni nad čistim početnim skupom podataka, prije demonstracija koje dodaju zapise:
 
 ```bash
 docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot eventhub' < reports/01_reports.sql
@@ -13,50 +13,50 @@ bash perf/00_create_perf_db.sh
 docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot' < perf/01_generate_100k.sql
 ```
 
-Report verification expects 18 PASS and 0 FAIL. The performance setup **replaces eventhub_perf**, leaving eventhub intact. Expect 100,175 reservations when copied directly from the clean seed.
+Provjera izvještaja treba dati 18 PASS i 0 FAIL. Priprema podataka za performanse **zamjenjuje eventhub_perf**, a `eventhub` ostavlja netaknutim. Kopija čistog početnog skupa proširena generatorom ima 100.175 rezervacija.
 
-Explain capacity, revenue and monthly trends using the reporting SQL. Why use LEFT JOIN for events with no purchases? Why must protection fees be counted once per reservation? Explain cancellation versus expiration in cancellation-rate reporting.
+Pomoću izvještajnih SQL upita objasni kapacitet, prihod i mjesečne trendove. Objasni zašto LEFT JOIN zadržava događaje bez kupnji, zašto se naknada zaštite broji jednom po rezervaciji te kako se otkazivanje razlikuje od isteka pri izračunu stope otkazivanja.
 
-## 2. Explain the ERD
+## 2. Objašnjenje ER dijagrama
 
-Open the diagram from the README. Trace buyer → reservation → item → ticket, then category → seat → hold. Explain composite foreign keys, the price snapshot and the generated active-seat key without reading a prepared explanation.
+Otvori dijagram iz README-a. Prati vezu `buyer → reservation → reservation_item → ticket`, zatim `ticket_category → seat → reservation_seat`. Objasni kompozitne strane ključeve, povijesni zapis cijene i generirani ključ aktivnog zauzeća sjedala.
 
-## 3. Successful and failed reservation
+## 3. Uspješna i odbijena rezervacija
 
 ```bash
 docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot eventhub' < tests/09_presentation.sql
 ```
 
-Expect a confirmed reservation, four issued tickets and reserved=4. A second booking raises occupancy to eight. The final request for three exceeds the remaining two places and produces an expected SQL error and nonzero client exit. Business error messages remain in Croatian.
+Očekuje se potvrđena rezervacija, četiri izdane karte i `reserved=4`. Druga kupnja povećava zauzeće na osam. Završni zahtjev za tri karte premašuje preostala dva mjesta, pa se očekuju SQL greška i nenulti izlazni kod klijenta. Poslovne poruke grešaka su na hrvatskom.
 
-Copy the printed demo category ID and inspect it in a new root connection: `SELECT capacity, reserved FROM ticket_category WHERE id = <demo_category>;`. Expect capacity=10 and reserved=8. Inspect reservations for the printed event ID: only two were created. The rejected call must leave no partial booking. Explain why quantity three is valid by itself but unavailable here. Each rerun creates fresh demo data.
+Kopiraj ispisani identifikator demo kategorije i provjeri ga u novoj administratorskoj vezi: `SELECT capacity, reserved FROM ticket_category WHERE id = <demo_category>;`. Očekivano je `capacity=10` i `reserved=8`. Za ispisani identifikator događaja trebaju postojati samo dvije rezervacije. Odbijeni poziv ne smije ostaviti djelomičnu rezervaciju. Objasni zašto je količina tri sama po sebi dopuštena, ali ovdje nema dovoljno mjesta. Svako ponovno pokretanje stvara nove demo podatke.
 
-## 4. Transactions and concurrent booking
+## 4. Transakcije i konkurentne kupnje
 
 ```bash
 docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot eventhub' < tests/05_transactions.sql
 bash tests/06_concurrency.sh
 ```
 
-Expect 7/7 transaction checks and 4 concurrency PASS results. A PASS in an intentionally unsafe scenario means the inconsistency was reproduced. Explain failed payment, cancellation and ROLLBACK as distinct operations.
+Očekuje se 7/7 transakcijskih provjera i četiri uspješne provjere konkurentnosti. PASS u namjerno nesigurnom scenariju znači da je nedosljednost reproducirana. Objasni neuspjelo plaćanje, otkazivanje i ROLLBACK kao zasebne operacije.
 
-Concurrency A reproduces overselling without locking; B serializes two sessions with FOR UPDATE; C rejects a relative counter increment through CHECK; D lets exactly one of ten sessions buy the last ticket through real procedures. Explain what the second session sees after waiting and why a valid counter alone cannot prove aggregate consistency. These tests add new demo events and require administrative privileges.
+Scenarij A reproducira prodaju iznad kapaciteta bez zaključavanja; B serijalizira dvije sesije pomoću FOR UPDATE; C odbija relativno povećanje brojača preko CHECK ograničenja; D dopušta točno jednoj od deset sesija kupnju zadnje karte kroz stvarne procedure. Objasni što druga sesija vidi nakon čekanja i zašto ispravan brojač sam po sebi ne dokazuje usklađenost podataka. Testovi dodaju nove demo događaje i zahtijevaju administratorske ovlasti.
 
-Recorded evidence: [transactions](05_transactions_output.md), [concurrency](06_concurrency_output.md).
+Spremljeni dokazi: [transakcije](05_transactions_output.md), [konkurentnost](06_concurrency_output.md).
 
-## 5. Optimization
+## 5. Optimizacija
 
-Use the [latest measured plans and results](07_performanse.md). The performance database must be rebuilt after schema changes; the manifest fingerprints the current schema, generator and SQL. Archive the previous series outside perf/results before repeating measurements. Do not quote timings from earlier database versions.
+Koristi [izmjerene planove i rezultate](07_performanse.md), uz njihov datum i verziju sheme. Prije novog mjerenja pripremi bazu prema aktualnoj shemi; manifest bilježi hashove sheme, generatora i SQL upita. Prethodnu seriju arhiviraj izvan `perf/results`. Stara vremena ne predstavljaj kao rezultate nove verzije baze.
 
 ```bash
 python3 perf/run_series.py
 python3 perf/summarize.py --document > docs/07_performanse.md
 ```
 
-The four configurations run over three rounds in one session, then restore the narrow indexes. Explain actual reads, index selection, space, write cost and measurement limits. Wider indexes may improve reads; the final choice is a workload trade-off.
+Četiri konfiguracije izvode se u tri kruga kroz jednu sesiju, a na kraju se vraćaju uski indeksi. Objasni stvarno pročitane retke, odabir indeksa, zauzeće prostora, trošak pisanja i ograničenja mjerenja. Širi indeksi mogu ubrzati čitanje; konačni odabir ovisi o opterećenju.
 
-## Final rehearsal
+## Završna priprema
 
-Explain every observed change independently: which row is locked, what rolls back, when tickets are issued, and how the consistency view detects drift. Distinguish seed-only expected totals from demo-enriched data. Stop and inspect unexpected results rather than treating an old PASS table as a live test.
+Samostalno objasni svaku opaženu promjenu: koji se redak zaključava, što se poništava, kada se izdaju karte i kako pogled za provjeru usklađenosti otkriva odstupanja. Razlikuj očekivane zbrojeve čistog početnog skupa od podataka proširenih demonstracijama. Neočekivani rezultat provjeri izravno; stara tablica s oznakama PASS nije dokaz trenutačnog stanja.
 
-The actual rejected presentation call and its preceding successful purchases are recorded in [presentation.txt](../tests/results/presentation.txt).
+Stvarni odbijeni prezentacijski poziv i prethodne uspješne kupnje zabilježeni su u [presentation.txt](../tests/results/presentation.txt).

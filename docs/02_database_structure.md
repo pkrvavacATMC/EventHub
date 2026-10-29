@@ -1,60 +1,60 @@
-# Database structure and design decisions
+# Struktura baze i projektne odluke
 
-[ERD](../eventhub-diagram.png) · [Setup](../README.md) · [Presentation](09_presentation.md)
+[ER dijagram](../eventhub-diagram.png) · [Postavljanje](../README.md) · [Prezentacija](09_presentation.md)
 
-## Entities and relationships
+## Entiteti i veze
 
-| Table | Purpose and relationships |
+| Tablica | Namjena i veze |
 | --- | --- |
-| city | Shared city reference with an IANA time zone; one city has many locations and buyers. |
-| organizer | One organizer manages many events. |
-| location | Venue belonging to one city; hosts many events. |
-| event | Scheduled event belonging to a venue, organizer and event type; has many categories and reservations. |
-| event_type | Nine seeded event types, such as concert, theatre and festival. |
-| buyer | Customer business data with an optional unique external_id (lowercase UUID, Keycloak sub); can create many reservations. |
-| ticket_category | Event-specific price, fee, capacity, seating type and occupied-capacity counter. |
-| seat | Numbered seat in one category; category, row and number are unique. |
-| reservation | One buyer booking one event, with status, timestamps and refund protection. |
-| reservation_item | Quantity and historical price/fee snapshot for a category in a reservation. |
-| reservation_seat | Historical seat hold for an item; releasing it allows a later hold. |
-| ticket | Individual issued ticket, optional seat hold, random code, check-in and refund information. |
+| city | Zajednički šifrarnik gradova s IANA vremenskom zonom; jedan grad ima više lokacija i kupaca. |
+| organizer | Jedan organizator upravlja većim brojem događaja. |
+| location | Mjesto održavanja pripada jednom gradu i može ugostiti više događaja. |
+| event | Događaj s određenim početkom pripada lokaciji, organizatoru i tipu događaja; ima više kategorija i rezervacija. |
+| event_type | Devet početnih tipova događaja, primjerice koncert, kazalište i festival. |
+| buyer | Poslovni podaci kupca s opcionalnim jedinstvenim external_id (UUID malim slovima, Keycloak sub); kupac može napraviti više rezervacija. |
+| ticket_category | Cijena, naknada, kapacitet, vrsta mjesta i brojač zauzeća za kategoriju jednog događaja. |
+| seat | Numerirano sjedalo u jednoj kategoriji; kombinacija kategorije, reda i broja je jedinstvena. |
+| reservation | Rezervacija jednog kupca za jedan događaj, sa statusom, vremenskim oznakama i zaštitom povrata. |
+| reservation_item | Količina i povijesni zapis cijene i naknade za kategoriju unutar rezervacije. |
+| reservation_seat | Povijesni zapis privremenog zauzeća sjedala za stavku; oslobađanje omogućuje novo zauzeće. |
+| ticket | Pojedinačna izdana karta s opcionalnim zauzećem sjedala, nasumičnim kodom te podacima o prijavi na ulazu i povratu. |
 
-The event-to-buyer relationship is many-to-many through reservations. A reservation can have several items but only 1–4 tickets in total. Standing tickets have no seat hold. A seat can have many historical holds, but only one active hold. Each hold can issue at most one ticket.
+Događaji i kupci povezani su vezom više-prema-više preko rezervacija. Jedna rezervacija može imati više stavki, ali ukupno samo 1–4 karte. Karte za stajaća mjesta nemaju zauzeće sjedala. Sjedalo može imati više povijesnih zauzeća, ali samo jedno aktivno. Iz jednog zapisa zauzeća može se izdati najviše jedna karta.
 
-## Time model
+## Model vremena
 
-System moments are TIMESTAMP values and connections use UTC. Only the event's
-local start remains DATETIME, interpreted through location and city.time_zone.
-Refund and check-in windows use UTC elapsed hours; monthly revenue uses the
-Zagreb business calendar. Only buyer.updated_at updates automatically.
+Sistemski trenuci pohranjuju se kao TIMESTAMP, a veze s bazom koriste UTC.
+Samo lokalni početak događaja ostaje DATETIME i tumači se preko lokacije i `city.time_zone`.
+Rokovi za povrat i prijavu na ulazu računaju se prema proteklim UTC satima;
+mjesečni prihod koristi poslovni kalendar Zagreba. Samo se `buyer.updated_at` automatski osvježava pri izmjeni retka.
 
-## Reservation lifecycle
+## Životni ciklus rezervacije
 
-`create_reservation` accepts buyer/event IDs, a JSON item array, a protection flag and an output reservation ID. It locks categories, checks availability and creates a pending reservation, items and optional seat holds atomically. Pending bookings occupy capacity for 15 minutes.
+`create_reservation` prima identifikatore kupca i događaja, JSON niz stavki, oznaku zaštite povrata i izlazni identifikator rezervacije. Zaključava kategorije, provjerava raspoloživost i atomski stvara rezervaciju na čekanju, stavke i opcionalna zauzeća sjedala. Rezervacije na čekanju zauzimaju kapacitet 15 minuta.
 
-`confirm_reservation` confirms an eligible reservation and issues tickets. `cancel_reservation` releases a pending reservation; `cancel_ticket` handles individual confirmed tickets and refunds. `expire_reservations`, invoked by the scheduled event, releases expired pending bookings. Check-in checks both the ticket code and event identity.
+`confirm_reservation` potvrđuje rezervaciju koja zadovoljava uvjete i izdaje karte. `cancel_reservation` oslobađa rezervaciju na čekanju, a `cancel_ticket` obrađuje pojedinačne potvrđene karte i povrate. `expire_reservations`, koju poziva zakazani događaj baze, oslobađa istekle rezervacije na čekanju. Prijava na ulazu provjerava kod karte i identitet događaja.
 
-Confirmation simulates successful payment: there is no payment gateway integration. A failed payment demonstration cancels the pending booking; a rejected booking is a separate case where creation itself fails.
+Potvrda simulira uspješno plaćanje; integracija s platnim sustavom nije implementirana. Demonstracija neuspjelog plaćanja otkazuje rezervaciju na čekanju. Odbijena rezervacija zaseban je slučaj u kojem već samo stvaranje rezervacije ne uspijeva.
 
-## Integrity and concurrency
+## Integritet i konkurentnost
 
-Primary and foreign keys establish identity and ownership. Composite foreign keys ensure an item and its category belong to the reservation event, a seat belongs to the item category, and a ticket hold belongs to the ticket item. These checks require intentionally redundant columns and supporting unique keys.
+Primarni i strani ključevi određuju identitet i pripadnost zapisa. Kompozitni strani ključevi osiguravaju da stavka i kategorija pripadaju događaju rezervacije, da sjedalo pripada kategoriji stavke te da zauzeće sjedala na karti pripada stavci te karte. Za te provjere potrebni su namjerno redundantni stupci i odgovarajući jedinstveni ključevi.
 
-CHECK constraints enforce local rules such as nonnegative prices and `0 <= reserved <= capacity`. Triggers enforce additional cross-table and lifecycle rules. Procedures coordinate multi-table transactions and roll back on exceptions. Application permissions encourage callers to use these procedures rather than write directly.
+CHECK ograničenja provode lokalna pravila, primjerice nenegativne cijene i `0 <= reserved <= capacity`. Triggeri provode dodatna pravila između tablica i pravila prijelaza statusa. Procedure koordiniraju transakcije nad više tablica i na iznimku izvode ROLLBACK. Aplikacijske ovlasti usmjeravaju pozivatelje na te procedure umjesto izravnih upisa.
 
-`SELECT ... FOR UPDATE` serializes competing operations on the same capacity rows. The waiting session reads availability after the first transaction completes. The concurrency script demonstrates why checking availability without locking can oversell even when a stored counter looks valid. CHECK alone protects the counter, not every aggregate invariant.
+`SELECT ... FOR UPDATE` serijalizira konkurentne operacije nad istim recima kapaciteta. Sesija koja čeka čita raspoloživost nakon završetka prve transakcije. Skripta za konkurentnost pokazuje kako provjera bez zaključavanja može prodati više karata od kapaciteta čak i kada pohranjeni brojač izgleda ispravno. Sam CHECK štiti brojač, ali ne jamči usklađenost svih povezanih podataka.
 
-`active_seat_id` is a stored generated column: an active hold exposes its seat ID, while a released hold exposes NULL. A unique index prevents two active holds for one seat while retaining history. `v_reserved_check` compares stored capacity counters against reservation data.
+`active_seat_id` je pohranjeni generirani stupac: aktivno zauzeće sadrži identifikator sjedala, a oslobođeno sadrži NULL. Jedinstveni indeks sprječava dva aktivna zauzeća istog sjedala uz očuvanje povijesti. `v_reserved_check` uspoređuje pohranjene brojače kapaciteta s podacima rezervacija.
 
-## Trade-offs and limitations
+## Kompromisi i ograničenja
 
-- `reserved` speeds availability checks but duplicates aggregate information; transactional updates and consistency checks are essential.
-- Price and fee snapshots preserve purchase history when category prices change.
-- Transactions and locks protect capacity but serialize popular-category purchases. Applications need an explicit retry policy for transient database failures.
-- Indexes accelerate reads at the cost of storage and write maintenance; measured selectivity matters more than adding indexes everywhere.
-- Transactional history is retained rather than deleted. This simplifies auditing but needs a future retention/privacy policy.
-- Refund protection costs 10% of ticket prices. Ticket prices are refunded fully with protection; without it, the policy is 80% at least seven days ahead, 50% at least 48 hours ahead, otherwise zero. Service and protection fees are not refunded.
-- Booking and cancellation stop at event start; check-in has a limited time window. Expiration depends on the database scheduler.
-- This is a database project: external payments, authentication, delivery and production operational policies require additional application work.
+- `reserved` ubrzava provjeru raspoloživosti, ali ponavlja agregirane podatke; nužni su transakcijski upisi i provjere usklađenosti.
+- Povijesni zapisi cijena i naknada čuvaju uvjete kupnje nakon promjene cijene kategorije.
+- Transakcije i zaključavanja štite kapacitet, ali serijaliziraju kupnje u popularnim kategorijama. Budućoj aplikaciji treba definirano ponavljanje operacija nakon prolaznih grešaka baze.
+- Indeksi ubrzavaju čitanje uz trošak prostora i održavanja pri pisanju; izmjerena selektivnost važnija je od dodavanja indeksa na svaki stupac.
+- Transakcijska povijest se čuva. To olakšava reviziju, ali zahtijeva buduću politiku zadržavanja podataka i zaštite privatnosti.
+- Zaštita povrata iznosi 10 % cijene karata. Uz zaštitu se vraća cijela cijena karte; bez zaštite vraća se 80 % najmanje sedam dana unaprijed, 50 % najmanje 48 sati unaprijed, inače 0 %. Naknada usluge i naknada zaštite ne vraćaju se.
+- Rezervacije i otkazivanja prestaju početkom događaja; prijava na ulazu ima ograničen vremenski prozor. Istek rezervacija ovisi o raspoređivaču baze.
+- Projekt obuhvaća bazu podataka. Vanjska plaćanja, Keycloak integracija, dostava karata i produkcijske operativne politike zahtijevaju dodatni aplikacijski rad.
 
-Views provide capacity, ticket statistics, attendance and monthly revenue. Revenue includes ticket prices and fees minus refunds; protection fees must be aggregated once per reservation to avoid JOIN multiplication.
+Pogledi prikazuju kapacitet, statistiku karata, posjećenost i mjesečni prihod. Prihod uključuje cijene karata i naknade umanjene za povrate; naknada zaštite mora se zbrojiti jednom po rezervaciji kako je JOIN ne bi višestruko uračunao.

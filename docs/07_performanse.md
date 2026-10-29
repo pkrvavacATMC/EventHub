@@ -56,7 +56,7 @@ Samo series.tsv: jedna MariaDB sesija, tri uzastopna A-D kruga. Svaka celija: me
 
 Potpuni EXPLAIN i JSON planovi sva tri kruga ostaju u series.tsv. Ovdje su planovi prvog kruga svih konfiguracija; rows je procjena, r_rows prosjek stvarnih redaka po petlji, r_loops broj petlji.
 
-### Q1 - Kupci s najvise rezervacija (Task 4 Q2)
+### Q1 - Kupci s najvise rezervacija (Zadatak 4, Q2)
 
 Cest rang izvjestaj i kontrola citanja cijelog skupa. FK indeks pokriva COUNT, ali sve rezervacije i dalje treba brojiti, uz agregaciju i filesort. Dodatni indeks povijesti ne uklanja taj posao.
 
@@ -131,7 +131,7 @@ ANALYZE, krug 1, mjerenje 1:
 
 15 vremena (ms), redom krugovi 1-3: 124.9, 150.4, 100.0, 171.6, 125.6, 116.9, 113.6, 105.0, 120.7, 108.7, 93.7, 101.0, 152.1, 145.9, 131.6.
 
-### Q2 - Mjesecni trend prihoda (Task 4 Q8)
+### Q2 - Mjesecni trend prihoda (Zadatak 4, Q8)
 
 Najskuplji izvjestaj: UNION ALL prodaje, zastite i povrata te vise agregacija. B omogucuje range rijetkih povrata; C pokriva njihov SUM/JOIN. D pokriva i datum/event/naknadu zastite. Sve konfiguracije i dalje obradjuju velik dio rezervacija; temporary/filesort ne nestaju.
 
