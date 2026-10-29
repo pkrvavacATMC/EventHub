@@ -1,6 +1,6 @@
 # Rezultati transakcijskih testova
 
-Provjereno **2026-10-29T15:09:40.017760+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
+Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
 
 **7/7 PASS.** PASS u prvom scenariju znaci da je namjerni problem bez transakcije reproduciran i zatim popravljen.
 

@@ -11,7 +11,7 @@
 | location | Venue belonging to one city; hosts many events. |
 | event | Scheduled event belonging to a venue, organizer and event type; has many categories and reservations. |
 | event_type | Nine seeded event types, such as concert, theatre and festival. |
-| buyer | Customer with optional password hash, verification and login status; can create many reservations. |
+| buyer | Customer business data with an optional unique external_id (lowercase UUID, Keycloak sub); can create many reservations. |
 | ticket_category | Event-specific price, fee, capacity, seating type and occupied-capacity counter. |
 | seat | Numbered seat in one category; category, row and number are unique. |
 | reservation | One buyer booking one event, with status, timestamps and refund protection. |
@@ -58,3 +58,5 @@ CHECK constraints enforce local rules such as nonnegative prices and `0 <= reser
 - This is a database project: external payments, authentication, delivery and production operational policies require additional application work.
 
 Views provide capacity, ticket statistics, attendance and monthly revenue. Revenue includes ticket prices and fees minus refunds; protection fees must be aggregated once per reservation to avoid JOIN multiplication.
+
+The repository PNG diagram shows the schema before migration 006, including the former buyer login fields. The current buyer has external_id instead; refresh the database ERD to inspect current columns. Other relationships are unchanged.

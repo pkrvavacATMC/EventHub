@@ -1,6 +1,6 @@
 # Izvjestaji i provjera
 
-Provjereno **2026-10-29T15:09:40.017760+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
+Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
 
 Nad cistim seedom: **8 evenata, 40 kupaca, 175 rezervacija, 290 karata**. Rezultat: **18 PASS, 0 FAIL**.
 

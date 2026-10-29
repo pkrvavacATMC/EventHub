@@ -1,6 +1,6 @@
 # Rezultati konkurentnih kupnji
 
-Provjereno **2026-10-29T15:09:40.017760+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
+Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
 
 | rezultat | scenarij | stanje |
 | --- | --- | --- |

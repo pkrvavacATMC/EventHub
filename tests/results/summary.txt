@@ -1,1 +1,1 @@
-PASS: 18 reports, 81 invalid data, 7 transactions, 4 concurrency; auth/type/zone constraints; permissions; backup/restore; presentation; UTC/DST matrix; scheduler; rollback 55.
+PASS: 18 reports, 88 invalid data, 7 transactions, 4 concurrency; Keycloak/type/zone constraints; permissions; backup/restore; presentation; UTC/DST matrix; scheduler; rollback 56.

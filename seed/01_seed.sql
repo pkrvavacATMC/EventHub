@@ -1422,12 +1422,7 @@ ALTER EVENT ev_expire_reservations ENABLE;
 DROP PROCEDURE seed_check_in_reservation;
 DROP PROCEDURE seed_assert_empty;
 
--- Testni web racuni: Ana verificirana, Ivan neverificiran; ostali bez racuna.
-UPDATE buyer SET password_hash = '$2b$12$quPE9J6xONK/KHjwVT41rO7X7iYSP6Y/oNYyZL0Fv77AfdQ7IJz3a',
- email_verified_at = CASE WHEN email = 'ana.horvat1@example.com' THEN NOW() ELSE NULL END,
- is_active = TRUE
-WHERE email IN ('ana.horvat1@example.com', 'ivan.knezevic2@example.com')
- AND password_hash IS NULL AND email_verified_at IS NULL AND is_active = TRUE;
+-- Seed kupci nemaju Keycloak racun; external_id ostaje NULL.
 
 -- Kontrola: brojaci moraju biti uskladeni (ocekivano: 0)
 SELECT COUNT(*) AS neuskladjeni_brojaci FROM v_reserved_check;

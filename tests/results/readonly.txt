@@ -1,10 +1,3 @@
-eventhub_report@%
-GRANT USAGE ON *.* TO `eventhub_report`@`%` IDENTIFIED BY PASSWORD '[REDACTED]'
-GRANT SELECT, SHOW VIEW ON `eventhub`.* TO `eventhub_report`@`%`
-175
-2026-01	556.00
-2026-02	1846.00
-2026-02	618.50
 --------------
 INSERT INTO city (name) VALUES ('Test')
 --------------
@@ -15,6 +8,13 @@ UPDATE reservation SET status = 'cancelled' WHERE 1 = 0
 --------------
 
 ERROR 1142 (42000) at line 13: UPDATE command denied to user 'eventhub_report'@'localhost' for table `eventhub`.`reservation`
+eventhub_report@%
+GRANT USAGE ON *.* TO `eventhub_report`@`%` IDENTIFIED BY PASSWORD '[REDACTED]'
+GRANT SELECT, SHOW VIEW ON `eventhub`.* TO `eventhub_report`@`%`
+175
+2026-01	556.00
+2026-02	1846.00
+2026-02	618.50
 --------------
 DELETE FROM ticket WHERE 1 = 0
 --------------

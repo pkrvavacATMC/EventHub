@@ -13,7 +13,7 @@ COLUMNS = {
     'reservation': ['created_at', 'confirmed_at', 'cancelled_at', 'expires_at'],
     'reservation_seat': ['released_at'],
     'ticket': ['checked_in_at', 'cancelled_at'],
-    'buyer': ['email_verified_at', 'locked_until', 'last_login_at', 'created_at', 'updated_at'],
+    'buyer': ['created_at', 'updated_at'],
 }
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,7 +54,7 @@ class Harness:
             (tmp / name).write_text('time-test-' + name)
             self.cfg['secrets'][name] = {'file': str(tmp / name)}
         self.compose = tmp / 'compose.json'
-        self.dc = ['docker', 'compose', '-p', 'eventhub-database-test', '-f', str(self.compose)]
+        self.dc = ['docker', 'compose', '-p', 'eventhub-keycloak-test-' + str(time.time_ns()), '-f', str(self.compose)]
         self.save()
 
     def save(self):
@@ -80,7 +80,7 @@ class Harness:
         run(self.dc + ['up', '-d', '--wait', 'db'])
 
     def down(self):
-        run(self.dc + ['down', '-v'], ok=False)
+        run(self.dc + ['down'], ok=False)
 
     def seed(self):
         # Seed je definiran lokalnim zagrebackim vremenima; NOW sprema TIMESTAMP trenutke.
@@ -177,9 +177,9 @@ SET @code=(SELECT ticket_code FROM ticket WHERE id=@t);
         self.db("SELECT local_to_utc('2027-01-01','Invalid/Zone');",fail='Nepoznata vremenska zona')
         # Lokacija se ne moze promijeniti nakon pocetka, cak ni uz isti lokalni datum.
         self.db(f"SET timestamp={start+1}; SET @loc=(SELECT id FROM location WHERE name='Time London'); UPDATE event SET location_id=@loc WHERE id={e};",fail='Datum eventa koji je poceo ili prosao')
-        # Vanjski guard iz 011 i dalje cuva pozivateljevu transakciju.
-        result=self.db(f"START TRANSACTION; UPDATE buyer SET failed_login_attempts=17 WHERE id={self.buyer}; CALL create_reservation({self.buyer},{e},'[]',0,@r); SELECT CONCAT('TX=',@@in_transaction),failed_login_attempts FROM buyer WHERE id={self.buyer}; ROLLBACK; SELECT failed_login_attempts FROM buyer WHERE id={self.buyer};",force=True)
-        assert 'izvan transakcije (autocommit=1)' in result and 'TX=1\t17' in result and result.endswith('0'),result
+        # Vanjski transakcijski guard i dalje cuva pozivateljevu transakciju.
+        result=self.db(f"SET @guard_address=(SELECT address FROM buyer WHERE id=1); START TRANSACTION; UPDATE buyer SET address='guard-probe' WHERE id={self.buyer}; CALL create_reservation({self.buyer},{e},'[]',0,@r); SELECT CONCAT('TX=',@@in_transaction),address FROM buyer WHERE id={self.buyer}; ROLLBACK; SELECT address <=> @guard_address FROM buyer WHERE id={self.buyer};",force=True)
+        assert 'izvan transakcije (autocommit=1)' in result and 'TX=1\tguard-probe' in result and result.endswith('1'),result
         assert self.db('SELECT * FROM v_reserved_check;') == ''
 
     def scheduler(self):
@@ -199,13 +199,11 @@ SET @code=(SELECT ticket_code FROM ticket WHERE id=@t);
         assert self.db('SELECT * FROM v_reserved_check;') == ''
         print('PASS: stvarni UTC event scheduler, trajanje rezervacije 900 sekundi',flush=True)
 
-    def auth(self):
-        import bcrypt
-        h=self.db("SELECT password_hash FROM buyer WHERE email='ana.horvat1@example.com';")
-        assert bcrypt.checkpw(b'EventHub-dev-2026!',h.encode())
-        assert self.db("SELECT COUNT(*) FROM buyer WHERE password_hash IS NOT NULL;") == '2'
-        assert self.db("SELECT email_verified_at IS NULL FROM buyer WHERE email='ivan.knezevic2@example.com';") == '1'
-        assert self.db("SELECT password_hash IS NULL FROM buyer WHERE email='marija.bozic3@example.com';") == '1'
+    def keycloak(self):
+        assert self.db("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='buyer' AND COLUMN_NAME IN ('password_hash','email_verified_at','failed_login_attempts','locked_until','is_active','last_login_at');") == '0'
+        assert self.db("SELECT CONCAT(DATA_TYPE,':',CHARACTER_MAXIMUM_LENGTH,':',IS_NULLABLE) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='buyer' AND COLUMN_NAME='external_id';") == 'char:36:YES'
+        assert self.db('SELECT COUNT(*) FROM buyer WHERE external_id IS NOT NULL;') == '0'
+        assert self.db("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='buyer' AND CONSTRAINT_NAME IN ('uq_buyer_external_id','chk_buyer_external_id');") == '2'
         assert self.db('SELECT COUNT(*) FROM event WHERE event_type_id IS NULL;') == '0'
 
 
@@ -224,28 +222,28 @@ def main():
             h.lb('update')
             assert 'Run:                          0' in h.lb('update')
             h.schema()
-            h.seed(); h.auth()
+            h.seed(); h.keycloak()
             reports=h.db((ROOT/'reports/02_verify_reports.sql').read_text())
             assert reports.endswith('18\t0') and 'FAIL' not in reports,reports
             capture('reports.tsv',reports)
             constraints(h); permissions(h); backup_restore(h)
             negative=h.db((ROOT/'tests/01_invalid_data.sql').read_text())
             capture('invalid_data.tsv',negative)
-            assert 'FAIL' not in negative and 'UKUPNO\t81\t0' in negative,negative
+            assert 'FAIL' not in negative and 'UKUPNO\t88\t0' in negative,negative
             transactions=h.db((ROOT/'tests/05_transactions.sql').read_text())
             capture('transactions.tsv',transactions)
             assert '7/7 PASS' in transactions,transactions
             app_and_guards(h); concurrency(h); presentation(h)
-            h.fixtures(); h.matrix(); dst_expiry(h); h.scheduler(); h.schema(); h.auth()
-            print('PASS: prazna baza, seed s loginom, 81 negativni i 7 transakcijskih testova',flush=True)
+            h.fixtures(); h.matrix(); dst_expiry(h); h.scheduler(); h.schema(); h.keycloak()
+            print('PASS: prazna baza, seed bez Keycloak racuna, 88 negativni i 7 transakcijskih testova',flush=True)
             count=int(h.db('SELECT COUNT(*) FROM DATABASECHANGELOG;'))
             h.lb('rollback-count','--count='+str(count))
             assert h.db('SELECT COUNT(*) FROM DATABASECHANGELOG;')=='0'
             assert h.db("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME NOT IN ('DATABASECHANGELOG','DATABASECHANGELOGLOCK');")=='0'
-            h.lb('update'); h.seed(); h.schema(); h.auth()
+            h.lb('update'); h.seed(); h.schema(); h.keycloak()
             assert 'Run:                          0' in h.lb('update')
             print(f'PASS: rollback svih {count} changesetova, ponovni update i seed',flush=True)
-            capture('summary.txt',f'PASS: 18 reports, 81 invalid data, 7 transactions, 4 concurrency; auth/type/zone constraints; permissions; backup/restore; presentation; UTC/DST matrix; scheduler; rollback {count}.')
+            capture('summary.txt',f'PASS: 18 reports, 88 invalid data, 7 transactions, 4 concurrency; Keycloak/type/zone constraints; permissions; backup/restore; presentation; UTC/DST matrix; scheduler; rollback {count}.')
             status='passed'
         finally:
             h.down()

@@ -1,8 +1,8 @@
 # Rezultati testova neispravnih podataka
 
-Provjereno **2026-10-29T15:09:40.017760+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
+Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
 
-**81 PASS, 0 FAIL**, brojaci uskladeni.
+**88 PASS, 0 FAIL**, brojaci uskladeni.
 
 | id | kategorija | opis | ocekivano | dobiveno | rezultat |
 | --- | --- | --- | --- | --- | --- |
@@ -87,5 +87,12 @@ Provjereno **2026-10-29T15:09:40.017760+00:00**, na novoj shemi. Dokazi: [manife
 | 79 | VRIJEME | Rezervacija tocno na pocetku eventa | 1644: Event je vec poceo ili prosao | 1644: Event je vec poceo ili prosao | PASS |
 | 80 | PRAVILO | Direktno otkazivanje potvrdene rezervacije s vazecim kartama | 1644: Rezervacija ima vazece karte | 1644: Rezervacija ima vazece karte; prvo otkazite karte | PASS |
 | 81 | PRAVILO | Direktno otkazivanje pending rezervacije s aktivnim holdom | 1644: Rezervacija ima aktivne holdove sjedala | 1644: Rezervacija ima aktivne holdove sjedala; prvo oslobodite sjedala | PASS |
+| 82 | KEYCLOAK | Duplikat external_id | 1062: uq_buyer_external_id | 1062: Duplicate entry '01234567-89ab-cdef-0123-456789abcdef' for key 'uq_buyer_external_id' | PASS |
+| 83 | KEYCLOAK | Neispravan UUID | 4025: chk_buyer_external_id | 4025: CONSTRAINT `chk_buyer_external_id` failed for `eventhub`.`buyer` | PASS |
+| 84 | KEYCLOAK | UUID s velikim slovima | 4025: chk_buyer_external_id | 4025: CONSTRAINT `chk_buyer_external_id` failed for `eventhub`.`buyer` | PASS |
+| 85 | KEYCLOAK | UUID bez crtica | 4025: chk_buyer_external_id | 4025: CONSTRAINT `chk_buyer_external_id` failed for `eventhub`.`buyer` | PASS |
+| 86 | KEYCLOAK | UUID s pogresnim znakom | 4025: chk_buyer_external_id | 4025: CONSTRAINT `chk_buyer_external_id` failed for `eventhub`.`buyer` | PASS |
+| 87 | KEYCLOAK | Dva kupca s NULL external_id | 0:  | 0: Operacija je prosla | PASS |
+| 88 | KEYCLOAK | Valjan UUID malim slovima | 0:  | 0: Operacija je prosla | PASS |
 
-[Sirovi ispis](../tests/results/invalid_data.tsv). Dodatni novi auth/type/zone testovi su u [constraints.txt](../tests/results/constraints.txt).
+[Sirovi ispis](../tests/results/invalid_data.tsv). Dodatni UUID/type/zone testovi su u [constraints.txt](../tests/results/constraints.txt).

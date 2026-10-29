@@ -3,41 +3,41 @@ CALL create_reservation(1,12,'[{"category_id":16,"quantity":2}]',0,@r)
 --------------
 
 ERROR 1644 (45000) at line 2: Procedura se mora pozvati izvan transakcije (autocommit=1)
-TX=1	17
-0
+TX=1	guard-probe
+1
 --------------
 CALL confirm_reservation(0)
 --------------
 
 ERROR 1644 (45000) at line 2: Procedura se mora pozvati izvan transakcije (autocommit=1)
-TX=1	17
-0
+TX=1	guard-probe
+1
 --------------
 CALL release_reservation(0,'buyer')
 --------------
 
 ERROR 1644 (45000) at line 2: Procedura se mora pozvati izvan transakcije (autocommit=1)
-TX=1	17
-0
+TX=1	guard-probe
+1
 --------------
 CALL cancel_ticket(0,@refund)
 --------------
 
 ERROR 1644 (45000) at line 2: Procedura se mora pozvati izvan transakcije (autocommit=1)
-TX=1	17
-0
+TX=1	guard-probe
+1
 --------------
 CALL generate_seats(0,1,1)
 --------------
 
 ERROR 1644 (45000) at line 2: Procedura se mora pozvati izvan transakcije (autocommit=1)
-TX=1	17
-0
+TX=1	guard-probe
+1
 --------------
 CALL cancel_reservation(0)
 --------------
 
 ERROR 1644 (45000) at line 2: Procedura se mora pozvati izvan transakcije (autocommit=1)
-TX=1	17
-0
+TX=1	guard-probe
+1
 PASS: 6 guard provjera cuva transakciju i podatke; 5 poslovnih gresaka vraca zonu pozivatelja.

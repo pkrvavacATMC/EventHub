@@ -9,4 +9,5 @@
     <include file="004-views.sql" relativeToChangelogFile="true"/>
     <include file="005-users.sql" relativeToChangelogFile="true"/>
     <include file="005-grants.sql" relativeToChangelogFile="true"/>
+    <include file="006-buyer-keycloak.sql" relativeToChangelogFile="true"/>
 </databaseChangeLog>

@@ -1,10 +1,10 @@
 -- =====================================================================
 -- EventHub - tests/01_invalid_data.sql : testovi neispravnih podataka (task 3)
 --
--- Pokretanje (nakon init + seed):
+-- Pokretanje (nakon Liquibase migracija i seeda):
 --   docker exec -i eventhub-db sh -c 'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" eventhub' < tests/01_invalid_data.sql
 --
--- Negativni testovi provjeravaju odbijanje, a pozitivni vremenski testovi prihvacanje.
+-- Negativni testovi provjeravaju odbijanje, a pozitivni testovi prihvacanje.
 -- Svaki negativni test provjerava da je baza odbila operaciju
 -- s ocekivanom greskom (kod + dio poruke). Rezultat: PASS / FAIL.
 --
@@ -363,6 +363,30 @@ CALL t_expect('PRAVILO', 'Direktno otkazivanje pending rezervacije s aktivnim ho
   'UPDATE reservation SET status = ''cancelled'', cancelled_at = NOW(), cancel_reason = ''buyer'' WHERE id = @pending_hold_res',
   1644, 'Rezervacija ima aktivne holdove sjedala');
 DROP PROCEDURE t_setup_pending_hold;
+
+-- Keycloak poveznica: sve izmjene ponistava t_expect.
+CALL t_expect('KEYCLOAK', 'Duplikat external_id',
+  'UPDATE buyer SET external_id = ''01234567-89ab-cdef-0123-456789abcdef'' WHERE id = 1',
+  'UPDATE buyer SET external_id = ''01234567-89ab-cdef-0123-456789abcdef'' WHERE id = 2',
+  1062, 'uq_buyer_external_id');
+CALL t_expect('KEYCLOAK', 'Neispravan UUID', NULL,
+  'UPDATE buyer SET external_id = ''nije-uuid'' WHERE id = 1',
+  4025, 'chk_buyer_external_id');
+CALL t_expect('KEYCLOAK', 'UUID s velikim slovima', NULL,
+  'UPDATE buyer SET external_id = ''01234567-89AB-cdef-0123-456789abcdef'' WHERE id = 1',
+  4025, 'chk_buyer_external_id');
+CALL t_expect('KEYCLOAK', 'UUID bez crtica', NULL,
+  'UPDATE buyer SET external_id = ''0123456789abcdef0123456789abcdef'' WHERE id = 1',
+  4025, 'chk_buyer_external_id');
+CALL t_expect('KEYCLOAK', 'UUID s pogresnim znakom', NULL,
+  'UPDATE buyer SET external_id = ''g1234567-89ab-cdef-0123-456789abcdef'' WHERE id = 1',
+  4025, 'chk_buyer_external_id');
+CALL t_expect('KEYCLOAK', 'Dva kupca s NULL external_id', NULL,
+  'INSERT INTO buyer (name, surname, email, city_id, external_id) VALUES (''Keycloak'', ''Null jedan'', ''keycloak-null-1@example.test'', 1, NULL), (''Keycloak'', ''Null dva'', ''keycloak-null-2@example.test'', 1, NULL)',
+  0, '');
+CALL t_expect('KEYCLOAK', 'Valjan UUID malim slovima', NULL,
+  'UPDATE buyer SET external_id = ''01234567-89ab-cdef-0123-456789abcdef'' WHERE id = 1',
+  0, '');
 
 -- ---------------------------------------------------------------------
 -- Rezultati

@@ -27,10 +27,6 @@ def manifest(status,started):
 
 def constraints(h):
     cases=[
-        ("UPDATE buyer SET password_hash='bad' WHERE id=1;",'chk_buyer_password_hash'),
-        ("UPDATE buyer SET password_hash='$2b$12$short' WHERE id=1;",'chk_buyer_password_hash'),
-        ("UPDATE buyer SET password_hash='$argon2id$bad' WHERE id=1;",'chk_buyer_password_hash'),
-        ("UPDATE buyer SET failed_login_attempts=-1 WHERE id=1;",'chk_buyer_failed_login_attempts'),
         ("UPDATE event SET event_type_id=2147483647 WHERE id=1;",'fk_event_type'),
         ("INSERT INTO event_type(code,name) VALUES ('INVALID','Invalid');",'chk_event_type_code'),
         ("INSERT INTO event_type(code,name) VALUES ('bad-code','Invalid');",'chk_event_type_code'),
@@ -45,21 +41,17 @@ def constraints(h):
     raw=[]
     for sql,error in cases:
         raw.append(h.db(sql,fail=error))
-    # I zavrsni newline mora biti odbijen, ne samo vidljivi pogresni znakovi.
-    bad_hash=h.db("SELECT password_hash FROM buyer WHERE id=1;")+"\n"
-    for sql,error in [("UPDATE buyer SET password_hash='"+bad_hash+"' WHERE id=1;",'chk_buyer_password_hash'),("INSERT INTO event_type(code,name) VALUES ('newline\n','Invalid');",'chk_event_type_code')]:
-        raw.append(h.db(sql,fail=error))
-    password_hash=h.db('SELECT password_hash FROM buyer WHERE id=1;')
-    # Argon2id fixture generiran je stvarnom sistemskom libargon2 bibliotekom.
-    candidates=[prefix+password_hash[4:] for prefix in ['$2a$','$2b$','$2y$']]+['$argon2id$v=19$m=65536,t=2,p=1$dSSov4bu/wyxAFik6avjuQ$xLK7B9DDXGYprx2kZWQorwUuKesH5O97opGWznUURug']
-    for candidate in candidates:
-        for mode in ['', 'NO_BACKSLASH_ESCAPES']:
-            h.db(f"SET sql_mode='{mode}'; START TRANSACTION; UPDATE buyer SET password_hash='{candidate}' WHERE id=1; ROLLBACK;")
+    raw.append(h.db("INSERT INTO event_type(code,name) VALUES ('newline\n','Invalid');",fail='chk_event_type_code'))
+    # Provjeri UUID i u NO_BACKSLASH_ESCAPES nacinu; ne mijenjaj poslovne podatke.
+    for mode in ['', 'NO_BACKSLASH_ESCAPES']:
+        h.db(f"SET sql_mode='{mode}'; START TRANSACTION; UPDATE buyer SET external_id='01234567-89ab-cdef-0123-456789abcdef' WHERE id=1; ROLLBACK;")
+        raw.append(h.db(f"SET sql_mode='{mode}'; UPDATE buyer SET external_id='01234567-89AB-cdef-0123-456789abcdef' WHERE id=1;",fail='chk_buyer_external_id'))
+        raw.append(h.db(f"SET sql_mode='{mode}'; UPDATE buyer SET external_id='01234567-89ab-cdef-0123-456789abcde\n' WHERE id=1;",fail='chk_buyer_external_id'))
     assert h.db("SELECT COUNT(*) FROM event_type;")=='9'
     assert h.db("SELECT COLUMN_DEFAULT IS NULL FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservation' AND COLUMN_NAME='expires_at';")=='1'
     assert h.db("SELECT COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket' AND COLUMN_NAME='ticket_code';")=='ascii_bin'
     assert h.db("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE' AND TABLE_COLLATION<>'utf8mb4_unicode_ci';")=='0'
-    capture('constraints.txt','\n'.join(raw)+'\nPASS: 16 odbijenih nevaljanih unosa, bcrypt/argon2id u oba SQL nacina, defaults i collation.')
+    capture('constraints.txt','\n'.join(raw)+'\nPASS: 15 odbijenih nevaljanih unosa, UUID u oba SQL nacina, defaults i collation.')
 
 
 def backup_restore(h):
@@ -91,7 +83,7 @@ def backup_restore(h):
     for view in h.db("SELECT TABLE_NAME FROM information_schema.VIEWS WHERE TABLE_SCHEMA='eventhub_restore';").splitlines():
         ddl=h.db(f'SHOW CREATE VIEW `{view}`;',database='eventhub_restore')
         assert '`eventhub`.' not in ddl,(view,'Pogled cita izvornu bazu')
-    capture('restore.tsv','\n'.join(evidence)+'\nPASS: 12 tablica, 12 epoch stupaca, 10 rutina, 21 trigger, 7 pogleda, UTC scheduler DISABLED.')
+    capture('restore.tsv','\n'.join(evidence)+'\nPASS: 12 tablica, 9 epoch stupaca, 10 rutina, 21 trigger, 7 pogleda, UTC scheduler DISABLED.')
     h.db('DROP DATABASE eventhub_restore;')
 
 
@@ -159,8 +151,8 @@ SELECT @e,LAST_INSERT_ID();
     results=[]
     calls=[f'CALL create_reservation({args});','CALL confirm_reservation(0);',"CALL release_reservation(0,'buyer');",'CALL cancel_ticket(0,@refund);','CALL generate_seats(0,1,1);','CALL cancel_reservation(0);']
     for call in calls:
-        output=h.db('START TRANSACTION; UPDATE buyer SET failed_login_attempts=17 WHERE id=1;'+call+'SELECT CONCAT("TX=",@@in_transaction),failed_login_attempts FROM buyer WHERE id=1; ROLLBACK; SELECT failed_login_attempts FROM buyer WHERE id=1;',force=True)
-        assert 'izvan transakcije (autocommit=1)' in output and 'TX=1\t17' in output and output.endswith('0'),output
+        output=h.db('SET @guard_address=(SELECT address FROM buyer WHERE id=1); START TRANSACTION; UPDATE buyer SET address="guard-probe" WHERE id=1;'+call+'SELECT CONCAT("TX=",@@in_transaction),address FROM buyer WHERE id=1; ROLLBACK; SELECT address <=> @guard_address FROM buyer WHERE id=1;',force=True)
+        assert 'izvan transakcije (autocommit=1)' in output and 'TX=1\tguard-probe' in output and output.endswith('1'),output
         results.append(output)
     # Nakon poslovne greske session zona se takodjer mora vratiti.
     for call in ['CALL confirm_reservation(0);',"CALL release_reservation(0,'buyer');",'CALL cancel_ticket(0,@refund);',"CALL check_in_ticket(0,'00000000000000000000000000000000');",'CALL create_reservation(0,0,NULL,0,@r);']:

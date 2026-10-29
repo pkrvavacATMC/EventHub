@@ -6,4 +6,4 @@
 6	5 procedure, placanje uspjelo	reserved=6, karte=6, confirmed	reserved=6, karte=6, confirmed	PASS
 7	6 procedure, 5 karata -> nista upisano	reserved=6, rezervacija=4	reserved=6, rezervacija=4	PASS
 7/7 PASS	SVI TESTOVI PROSLI
-188	cancelled	buyer	2026-10-29 15:07:51	2026-10-29 15:07:51
+188	cancelled	buyer	2026-10-29 16:33:27	2026-10-29 16:33:27

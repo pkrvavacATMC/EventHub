@@ -1,0 +1,41 @@
+CURRENT_USER()
+eventhub_report@%
+Grants for eventhub_report@%
+GRANT USAGE ON *.* TO `eventhub_report`@`%` IDENTIFIED BY PASSWORD '[REDACTED]'
+GRANT SELECT, SHOW VIEW ON `eventhub`.* TO `eventhub_report`@`%`
+rezervacije
+196
+month	net_revenue
+2026-01	556.00
+2026-02	1846.00
+2026-02	618.50
+--------------
+INSERT INTO city (name) VALUES ('Test')
+--------------
+
+ERROR 1142 (42000) at line 11: INSERT command denied to user 'eventhub_report'@'localhost' for table `eventhub`.`city`
+--------------
+UPDATE reservation SET status = 'cancelled' WHERE 1 = 0
+--------------
+
+ERROR 1142 (42000) at line 12: UPDATE command denied to user 'eventhub_report'@'localhost' for table `eventhub`.`reservation`
+--------------
+DELETE FROM ticket WHERE 1 = 0
+--------------
+
+ERROR 1142 (42000) at line 13: DELETE command denied to user 'eventhub_report'@'localhost' for table `eventhub`.`ticket`
+--------------
+CREATE TABLE test_tablica (id INT)
+--------------
+
+ERROR 1142 (42000) at line 14: CREATE command denied to user 'eventhub_report'@'localhost' for table `eventhub`.`test_tablica`
+--------------
+DROP TABLE nepostojeca_tablica
+--------------
+
+ERROR 1142 (42000) at line 15: DROP command denied to user 'eventhub_report'@'localhost' for table `eventhub`.`nepostojeca_tablica`
+--------------
+CALL confirm_reservation(999999)
+--------------
+
+ERROR 1370 (42000) at line 16: execute command denied to user 'eventhub_report'@'%' for routine 'eventhub.confirm_reservation'

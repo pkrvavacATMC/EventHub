@@ -1,8 +1,10 @@
-# Analiza performansi nove testne sheme
+# Povijesna analiza performansi prije migracije 006
+
+Ovo mjerenje pripada shemi prije Keycloak migracije 006 (12 TIMESTAMP stupaca). Aktualna shema ima devet takvih stupaca. Rezultati nisu ponovno mjereni nakon 006; sacuvani manifest opisuje tadasnje izvore. Za novo mjerenje arhiviraj stare dokaze, pripremi aktualnu perf bazu i ponovi cijelu seriju.
 
 Mjerenje zavrseno 2026-10-29T15:22:43.337401+00:00. MariaDB 10.11.19-MariaDB-ubu2204; session UTC; 100175 rezervacija i 189133 karata. Buffer pool: 134217728 bajtova.
 
-Performance baza je ponovno stvorena iz aktualnog cistog seeda i prosirena za 100.000 rezervacija. Koristi 12 TIMESTAMP stupaca, lokalni event_date, IANA zone i ASCII kod karte. Stara mjerenja nisu ukljucena u ove rezultate.
+Performance baza je ponovno stvorena iz tada aktualnog cistog seeda i prosirena za 100.000 rezervacija. Koristi 12 TIMESTAMP stupaca, lokalni event_date, IANA zone i ASCII kod karte. Stara mjerenja nisu ukljucena u ove rezultate.
 
 ## Postupak
 

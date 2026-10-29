@@ -60,7 +60,7 @@ SELECT 'SERIES_END' AS marker, CONNECTION_ID() AS connection_id, SYSDATE(6) AS f
       'revenue_view_sha256',(SELECT SHA2(VIEW_DEFINITION,256) FROM information_schema.VIEWS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='v_revenue_monthly'))"""
     metadata=subprocess.run(command,input=metadata_sql,text=True,capture_output=True,check=True)
     manifest['database']=json.loads(metadata.stdout.splitlines()[-1])
-    assert manifest['database']['system_timestamp_columns']==12
+    assert manifest['database']['system_timestamp_columns']==9
     assert manifest['database']['session_time_zone']=='+00:00'
     assert manifest['database']['ticket_code_collation']=='ascii_bin'
     manifest['schema_sha256']={str(p.relative_to(ROOT.parent)):hashlib.sha256(p.read_bytes()).hexdigest()

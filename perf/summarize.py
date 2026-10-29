@@ -201,7 +201,7 @@ def render_document(series):
           f"{meta['database']['reservations']} rezervacija i {meta['database']['tickets']} karata. "
           f"Buffer pool: {series['buffer_pool']} bajtova.\n")
     print('Performance baza je ponovno stvorena iz aktualnog cistog seeda i prosirena za 100.000 rezervacija. '
-          'Koristi 12 TIMESTAMP stupaca, lokalni event_date, IANA zone i ASCII kod karte. '
+          f"Koristi {series['manifest']['database']['system_timestamp_columns']} TIMESTAMP stupaca, lokalni event_date, IANA zone i ASCII kod karte. "
           'Stara mjerenja nisu ukljucena u ove rezultate.\n')
     print('## Postupak\n')
     print('Jedna MariaDB sesija, tri A-D kruga; jedno zagrijavanje i pet mjerenja po upitu/krugu. '

@@ -1,0 +1,7 @@
+Table	Create Table
+buyer	CREATE TABLE `buyer` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `name` varchar(100) NOT NULL,\n  `surname` varchar(100) NOT NULL,\n  `email` varchar(190) NOT NULL,\n  `address` varchar(200) DEFAULT NULL,\n  `city_id` int(11) NOT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  `updated_at` timestamp NULL DEFAULT NULL ON UPDATE current_timestamp(),\n  `external_id` char(36) DEFAULT NULL,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uq_buyer_email` (`email`),\n  UNIQUE KEY `uq_buyer_external_id` (`external_id`),\n  KEY `fk_buyer_city` (`city_id`),\n  CONSTRAINT `fk_buyer_city` FOREIGN KEY (`city_id`) REFERENCES `city` (`id`),\n  CONSTRAINT `chk_buyer_name` CHECK (trim(`name`) <> '' and trim(`surname`) <> ''),\n  CONSTRAINT `chk_buyer_email` CHECK (`email` like '%_@_%._%' and `email`  not like '% %'),\n  CONSTRAINT `chk_buyer_external_id` CHECK (`external_id` is null or char_length(`external_id`) = 36 and !(`external_id` regexp '[[:space:]]') and `external_id` regexp cast('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' as char charset binary))\n) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+ID	AUTHOR	FILENAME	EXECTYPE	MD5SUM
+006-buyer-keycloak	eventhub	migrations/006-buyer-keycloak.sql	EXECUTED	9:017291d06417f9743b0c873540085736
+EVENT_SCHEMA	STATUS
+eventhub	ENABLED
+eventhub_perf	DISABLED

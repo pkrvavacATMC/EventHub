@@ -1,53 +1,71 @@
-# Liquibase: testna baza
+# Liquibase i nadogradnje baze
 
-Projekt koristi MariaDB 10.11 i Liquibase 4.33.0. Migracije stvaraju konacnu shemu
-izravno na praznoj bazi; nema adoption guarda, naknadnih ALTER lanaca, contexta ni
-label filtera. Svi SQL changesetovi imaju rollback.
+Projekt koristi MariaDB 10.11 i Liquibase 4.33.0 Open Source. Formatted SQL
+migracije izvrsavaju se redom iz `migrations/db.changelog-master.xml`.
+Izvrsene migracije se ne mijenjaju: promjene idu u novu datoteku na kraj mastera.
+Liquibase pamti checksum svakog changeseta u `DATABASECHANGELOG`.
 
 | Datoteka | Sadrzaj |
 | --- | --- |
-| `001-tables.sql` | 12 tablica, svi stupci, ogranicenja, indeksi i devet tipova dogadjaja |
-| `002-functions-triggers.sql` | refund_percent, local_to_utc i svi triggeri |
-| `003-procedures-event.sql` | Sve procedure i UTC event za istek rezervacija |
-| `004-views.sql` | Svih sedam pogleda |
+| `001-tables.sql` | Pocetne tablice, ogranicenja, indeksi i tipovi dogadjaja |
+| `002-functions-triggers.sql` | Funkcije i triggeri |
+| `003-procedures-event.sql` | Procedure i UTC event za istek rezervacija |
+| `004-views.sql` | Sedam pogleda |
 | `005-users.sql` | Dva korisnika s lozinkama iz Compose secrets |
-| `005-grants.sql` | Ovlasti nakon stvaranja procedura i pogleda |
+| `005-grants.sql` | Ovlasti |
+| `006-buyer-keycloak.sql` | Uklanja sest login polja i njihova dva CHECK-a; dodaje nullable UUID `external_id`, UNIQUE i CHECK |
 
-Redoslijed odredjuje `db.changelog-master.xml`. Svaki objekt definiran je jednom.
-Za procedure i triggere JDBC dobiva cijelu definiciju, bez DELIMITER naredbe.
-Tablice eksplicitno koriste utf8mb4 / utf8mb4_unicode_ci, a kod karte ascii_bin.
+Ukupno: sedam SQL datoteka, 56 changesetova s rollbackom. Pocetni 001 i ostale
+primijenjene migracije ostaju nepromijenjeni. Nema adoption guarda u aktualnom checkoutu.
 
-## Postavljanje i reset
+## Postojeca baza nakon pulla
+
+Prvo napravi backup prema [administraciji](08_administracija.md), zatim:
 
 ```bash
+docker compose down
 docker compose up -d
-docker compose run --rm --no-deps liquibase update
-docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot eventhub' < seed/01_seed.sql
+docker compose ps -a
+docker compose logs liquibase
 ```
 
-Seed je izricita testna inicijalizacija: ucitava poslovne primjere i dev web
-racune. Ne koristi Liquibase context i ne ponavlja se nad postojecim podacima.
-Ponovljeni Liquibase update ne izvrsava nista.
+`db` mora biti healthy, `liquibase` Exited (0). Ako je ranijih 55 changesetova vec
+izvrseno, pokrece se samo 006. Podaci kupaca, rezervacija i karata se cuvaju;
+uklanjaju se samo navedeni login atributi. Seed se NE pokrece ponovno.
+`down` cuva volumen; ne koristiti `down -v`.
 
-Za vec postojecu bazu s prethodnim changelogom koristi reset naredbe iz README-a:
-DROP DATABASE eventhub, CREATE DATABASE s utf8mb4_unicode_ci, update i seed.
-Stari checksumi i evidencija time se uklanjaju zajedno s testnom bazom; ne koriste
-se clear-checksums niti changelog-sync. Ostale baze i Docker volumen ostaju.
+Rollback 006 vraca staru strukturu, zadane vrijednosti i CHECK-ove, ali izgubljene
+login vrijednosti moze vratiti samo backup. Rollback uklanja i Keycloak poveznice.
+Ne izvoditi ga nad poslovnom bazom bez plana povrata podataka.
 
-## Provjera
+Compose automatski migrira samo `eventhub`. Postojecu perf kopiju sa starim
+changesetovima mozes nadograditi zasebno, nakon backupa:
+
+```bash
+docker compose run --rm --no-deps liquibase --url='jdbc:mariadb://db:3306/eventhub_perf?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true' update
+```
+
+Kopirani event za istek mora ostati DISABLED. Za nova performance mjerenja prvo
+pripremi kopiju iz cistog seeda po performance uputama; ne ponavljaj generator na
+vec popunjenoj kopiji. Stari rezultati ostaju povijesni dokaz prije 006.
+
+## Nova instalacija i provjere
+
+Na novoj praznoj bazi `docker compose up -d` primjenjuje svih 56 changesetova.
+Tek zatim jednom ucitaj seed prema README-u; `external_id` ostaje NULL.
 
 ```bash
 docker compose run --rm --no-deps liquibase validate
 python3 tests/test_database.py
+python3 docs/render_docs.py
 ```
 
-Integracija koristi vlastiti Compose projekt, mrezu i volumen, bez host portova.
-Provjerava praznu bazu, ponovljeni update, seed s loginom, ogranicenja, poslovne
-procedure, tri session zone, DST granice, stvarni scheduler i rollback cijelog
-changeloga pa ponovnu instalaciju. Brise samo vlastiti testni volumen.
+Runner koristi vlastiti Compose projekt bez host portova. Provjerava instalaciju,
+ponovljeni update, Keycloak ogranicenja, seed, procedure, ovlasti, backup/restore,
+UTC/DST, scheduler i potpuni rollback pa novu instalaciju. Glavnu bazu ne mijenja.
+Na kraju uklanja testne kontejnere i mrezu; testni volumen ostaje sacuvan.
+Generator dokumentacije provjerava manifest i hashove funkcionalnih dokaza.
+Performance dokument se osvjezava zasebno, tek nakon novog mjerenja:
+`python3 docs/render_docs.py --with-performance`.
 
-[Rezultati provjere](10_schema_validation.md).
-
-Pri daljnjem radu na ovoj testnoj bazi moze se urediti pocetna shema i ponovno
-resetirati bazu. Ako projekt kasnije bude koristio stvarne podatke, od tog
-trenutka promjene treba dodavati novim migracijama umjesto mijenjanja primijenjenih.
+[Rezultati](10_schema_validation.md).

@@ -1,0 +1,28 @@
+liquibase-1  | ####################################################
+liquibase-1  | ##   _     _             _ _                      ##
+liquibase-1  | ##  | |   (_)           (_) |                     ##
+liquibase-1  | ##  | |    _  __ _ _   _ _| |__   __ _ ___  ___   ##
+liquibase-1  | ##  | |   | |/ _` | | | | | '_ \ / _` / __|/ _ \  ##
+liquibase-1  | ##  | |___| | (_| | |_| | | |_) | (_| \__ \  __/  ##
+liquibase-1  | ##  \_____/_|\__, |\__,_|_|_.__/ \__,_|___/\___|  ##
+liquibase-1  | ##              | |                               ##
+liquibase-1  | ##              |_|                               ##
+liquibase-1  | ##                                                ## 
+liquibase-1  | ##  Get documentation at docs.liquibase.com       ##
+liquibase-1  | ##  Get certified courses at learn.liquibase.com  ## 
+liquibase-1  | ##                                                ##
+liquibase-1  | ####################################################
+liquibase-1  | Starting Liquibase at 16:25:48 using Java 21.0.8 (version 4.33.0 #8744 built at 2025-07-08 20:43+0000)
+liquibase-1  | Liquibase Version: 4.33.0
+liquibase-1  | Liquibase Open Source 4.33.0 by Liquibase
+liquibase-1  | Running Changeset: migrations/006-buyer-keycloak.sql::006-buyer-keycloak::eventhub
+liquibase-1  | 
+liquibase-1  | UPDATE SUMMARY
+liquibase-1  | Run:                          1
+liquibase-1  | Previously run:              55
+liquibase-1  | Filtered out:                 0
+liquibase-1  | -------------------------------
+liquibase-1  | Total change sets:           56
+liquibase-1  | 
+liquibase-1  | Liquibase: Update has been successful. Rows affected: 40
+liquibase-1  | Liquibase command 'update' was executed successfully.

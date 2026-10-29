@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "finished_utc": "2026-10-29T16:30:43.633091+00:00",
+  "artifacts_sha256": {
+    "keycloak_live_schema.txt": "1df7a90a7d6f929ffd9e70f7fecbc304334d662768555c69e3f48a3ec210805f",
+    "keycloak_live_invalid_data.tsv": "a2e35b7c47744d19435325fcefe4da89e626447a4d7b7ddef41d035bf636d4c0",
+    "keycloak_live_reports.tsv": "85e63802a56dfbbd439268b35d4641f0768df0e75308e9c1766e566a0de4e780",
+    "keycloak_live_transactions.tsv": "c44b1c5f2170beec8e6bd37d5f6d7a9641ca5f140b1c7642eaef4cd0ca1803f9",
+    "keycloak_live_concurrency.txt": "470fe95358f1d2c0bdd16c28d9f126b18341315b7759e9e972a81451273e6597",
+    "keycloak_live_readonly.txt": "07de139a7018de3133abff62654d609f97b1bd118deb03d1de24f6562f8c4e6b",
+    "keycloak_live_final_counts.tsv": "dd811a6332ffdd440eec1e57e2ae760ced143d00f176a69ab46ed26d14aedf1f",
+    "keycloak_live_liquibase.txt": "8707269eec48409506da67dde566c4068a89db8f205de9a555cd5454c0bdc332",
+    "keycloak_live_repeat_update.txt": "e3f6588f693733a06dc19608393ed61385267adb55c610524a86278789d93fef",
+    "keycloak_live_perf_liquibase.txt": "b1962a086812ef1fbf6324651d55e7a8bad833e2d79478621c433687d42325a0"
+  },
+  "migration_preservation": "keycloak_migration.json",
+  "note": "Counts preserved at migration; transaction and concurrency demos subsequently add rows to eventhub. Seed was not rerun."
+}

@@ -1,8 +1,8 @@
 # Backup, restore i ovlasti
 
-Provjereno **2026-10-29T15:09:40.017760+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
+Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
 
-Backup/restore je provjeren u izoliranom Compose okruzenju na novoj shemi, bez promjena glavne baze. Usporedjeni su svi reci preko CHECKSUM TABLE EXTENDED te UNIX_TIMESTAMP svih 12 vremenskih stupaca.
+Backup/restore je provjeren u izoliranom Compose okruzenju na novoj shemi, bez promjena glavne baze. Usporedjeni su svi reci preko CHECKSUM TABLE EXTENDED te UNIX_TIMESTAMP svih devet vremenskih stupaca.
 
 | tablica | redaka | checksum jednak | epoch jednak |
 | --- | --- | --- | --- |

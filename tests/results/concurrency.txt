@@ -2,12 +2,12 @@
  A) BEZ ZAKLJUCAVANJA - reprodukcija problema
 ==================================================================
 Event 13: kapacitet 10, prodano 9, ostaje 1 karta. Sesije A i B krecu istovremeno.
-| A      | START, citam slobodna mjesta | 15:07:57.229552 |
-| A      | vidim slobodnih: 1 | 15:07:57.230155 |
-| B      | START, citam slobodna mjesta | 15:07:57.567197 |
-| B      | vidim slobodnih: 1 | 15:07:57.567979 |
-| A      | KUPIO zadnju kartu (COMMIT) | 15:07:59.237336 |
-| B      | KUPIO zadnju kartu (COMMIT) | 15:07:59.576232 |
+| A      | START, citam slobodna mjesta | 16:33:29.952735 |
+| A      | vidim slobodnih: 1 | 16:33:29.953202 |
+| B      | START, citam slobodna mjesta | 16:33:30.253503 |
+| B      | vidim slobodnih: 1 | 16:33:30.253974 |
+| A      | KUPIO zadnju kartu (COMMIT) | 16:33:31.954829 |
+| B      | KUPIO zadnju kartu (COMMIT) | 16:33:32.257063 |
 --- stanje nakon: A ---
 +-----------+-----------------+-----------------+----------------+------------------+
 | kapacitet | brojac_reserved | stvarno_prodano | izdanih_karata | v_reserved_check |
@@ -25,12 +25,12 @@ Event 13: kapacitet 10, prodano 9, ostaje 1 karta. Sesije A i B krecu istovremen
  B) RJESENJE: SELECT ... FOR UPDATE (pesimisticko zakljucavanje)
 ==================================================================
 Event 14: kapacitet 10, prodano 9, ostaje 1 karta. Sesije A i B krecu istovremeno.
-| A      | START, citam slobodna mjesta | 15:08:01.144652 |
-| A      | vidim slobodnih: 1 | 15:08:01.145399 |
-| B      | START, citam slobodna mjesta | 15:08:01.417935 |
-| B      | vidim slobodnih: 0 | 15:08:03.148735 |
-| A      | KUPIO zadnju kartu (COMMIT) | 15:08:03.154391 |
-| B      | ODBIJENO: nema slobodnih mjesta | 15:08:05.149876 |
+| A      | START, citam slobodna mjesta | 16:33:33.059453 |
+| A      | vidim slobodnih: 1 | 16:33:33.059812 |
+| B      | START, citam slobodna mjesta | 16:33:33.351908 |
+| B      | vidim slobodnih: 0 | 16:33:35.060816 |
+| A      | KUPIO zadnju kartu (COMMIT) | 16:33:35.062072 |
+| B      | ODBIJENO: nema slobodnih mjesta | 16:33:37.061093 |
 --- stanje nakon: B ---
 +-----------+-----------------+-----------------+----------------+------------------+
 | kapacitet | brojac_reserved | stvarno_prodano | izdanih_karata | v_reserved_check |
@@ -42,12 +42,12 @@ Event 14: kapacitet 10, prodano 9, ostaje 1 karta. Sesije A i B krecu istovremen
  C) ZADNJA LINIJA OBRANE: CHECK chk_category_reserved (bez locka)
 ==================================================================
 Event 15: obje sesije vide 1 slobodno mjesto, ali upis reserved+1 druge sesije krsi CHECK.
-| A      | START, citam slobodna mjesta | 15:08:06.130195 |
-| A      | vidim slobodnih: 1 | 15:08:06.131165 |
-| B      | START, citam slobodna mjesta | 15:08:06.462497 |
-| B      | vidim slobodnih: 1 | 15:08:06.463210 |
-| A      | KUPIO zadnju kartu (COMMIT) | 15:08:08.134234 |
-| B      | ODBIJENO (greska baze): CONSTRAINT `chk_category_reserved` failed for `eventhub`.`ticket_category` | 15:08:08.464232 |
+| A      | START, citam slobodna mjesta | 16:33:37.620055 |
+| A      | vidim slobodnih: 1 | 16:33:37.620522 |
+| B      | START, citam slobodna mjesta | 16:33:37.921173 |
+| B      | vidim slobodnih: 1 | 16:33:37.921617 |
+| A      | KUPIO zadnju kartu (COMMIT) | 16:33:39.621953 |
+| B      | ODBIJENO (greska baze): CONSTRAINT `chk_category_reserved` failed for `eventhub`.`ticket_category` | 16:33:39.922024 |
 --- stanje nakon: C ---
 +-----------+-----------------+-----------------+----------------+------------------+
 | kapacitet | brojac_reserved | stvarno_prodano | izdanih_karata | v_reserved_check |
@@ -60,11 +60,11 @@ Event 15: obje sesije vide 1 slobodno mjesto, ali upis reserved+1 druge sesije k
 ==================================================================
 Event 16: 10 neovisnih sesija istovremeno trazi zadnju kartu.
 sesija 1: ODBIJENO - Nema dovoljno slobodnih mjesta
-sesija 2: ODBIJENO - Nema dovoljno slobodnih mjesta
+sesija 2: KUPILA zadnju kartu (rezervacija 208, confirmed)
 sesija 3: ODBIJENO - Nema dovoljno slobodnih mjesta
 sesija 4: ODBIJENO - Nema dovoljno slobodnih mjesta
 sesija 5: ODBIJENO - Nema dovoljno slobodnih mjesta
-sesija 6: KUPILA zadnju kartu (rezervacija 208, confirmed)
+sesija 6: ODBIJENO - Nema dovoljno slobodnih mjesta
 sesija 7: ODBIJENO - Nema dovoljno slobodnih mjesta
 sesija 8: ODBIJENO - Nema dovoljno slobodnih mjesta
 sesija 9: ODBIJENO - Nema dovoljno slobodnih mjesta

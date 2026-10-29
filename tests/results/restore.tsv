@@ -11,4 +11,4 @@ reservation_seat	170	1	1
 seat	240	1	1
 ticket	290	1	1
 ticket_category	13	1	1
-PASS: 12 tablica, 12 epoch stupaca, 10 rutina, 21 trigger, 7 pogleda, UTC scheduler DISABLED.
+PASS: 12 tablica, 9 epoch stupaca, 10 rutina, 21 trigger, 7 pogleda, UTC scheduler DISABLED.
