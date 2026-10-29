@@ -58,5 +58,3 @@ CHECK constraints enforce local rules such as nonnegative prices and `0 <= reser
 - This is a database project: external payments, authentication, delivery and production operational policies require additional application work.
 
 Views provide capacity, ticket statistics, attendance and monthly revenue. Revenue includes ticket prices and fees minus refunds; protection fees must be aggregated once per reservation to avoid JOIN multiplication.
-
-The repository PNG diagram shows the schema before migration 006, including the former buyer login fields. The current buyer has external_id instead; refresh the database ERD to inspect current columns. Other relationships are unchanged.

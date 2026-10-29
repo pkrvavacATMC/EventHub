@@ -6,8 +6,6 @@ Repozitorij sadrži testne podatke, izvještaje i ponovljive provjere; web aplik
 
 ## Dijagram baze
 
-PNG prikazuje poslovne veze i stupce prije migracije 006. U aktualnoj tablici `buyer` šest login polja zamijenjeno je s `external_id`; ostale veze vrijede i dalje. Za aktualne stupce koristi `SHOW CREATE TABLE buyer` ili osvježi ERD u DBeaveru.
-
 ![EventHub ERD](eventhub-diagram.png)
 
 Veza `buyer → reservation → reservation_item → ticket` prikazuje kupca, njegovu rezervaciju, stavke i izdane karte.
