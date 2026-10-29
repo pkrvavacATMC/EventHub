@@ -256,6 +256,8 @@ ALTER EVENT ev_expire_reservations DISABLE;
 -- ---------------------------------------------------------------------
 -- Matični podaci (stanje na pocetku godine)
 -- ---------------------------------------------------------------------
+SET @seed_previous_time_zone = @@session.time_zone;
+SET time_zone = 'Europe/Zagreb';
 SET timestamp = UNIX_TIMESTAMP('2026-01-05 09:00:00');
 """)
 h("INSERT INTO city (name) VALUES " + ", ".join(f"('{c}')" for c in cities) + ";")
@@ -266,8 +268,9 @@ h("INSERT INTO organizer (name, email) VALUES\n  " +
 h("INSERT INTO buyer (name, surname, email, address, city_id) VALUES\n  " +
   ",\n  ".join(f"('{f}', '{l}', '{e}', 'Ulica {i+1}', {ci})" for i, (f, l, e, ci) in enumerate(buyers)) + ";")
 h("")
-h("INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES\n  " +
-  ",\n  ".join(f"('{e[0]}', '{ts(e[1])}', {e[2]}, {e[3]}, {e[4]})" for e in events) + ";")
+event_type_codes = ["concert", "festival", "concert", "standup", "concert", "concert", "theatre", "festival"]
+h("INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id) VALUES\n  " +
+  ",\n  ".join(f"('{e[0]}', '{ts(e[1])}', {e[2]}, {e[3]}, {e[4]}, (SELECT id FROM event_type WHERE code = '{code}'))" for e, code in zip(events, event_type_codes)) + ";")
 h("")
 h("INSERT INTO ticket_category (event_id, name, price, service_fee, capacity, seating_type) VALUES\n  " +
   ",\n  ".join(f"({c['event']}, '{c['name']}', {c['price']:.2f}, {c['fee']:.2f}, {c['cap']}, '{c['type']}')" for c in cats) + ";")
@@ -285,9 +288,17 @@ F.append("""-- -----------------------------------------------------------------
 -- Kraj: vrati stvarno vrijeme, ukljuci scheduler, pocisti pomocne procedure
 -- ---------------------------------------------------------------------
 SET timestamp = DEFAULT;
+SET time_zone = @seed_previous_time_zone;
 ALTER EVENT ev_expire_reservations ENABLE;
 DROP PROCEDURE seed_check_in_reservation;
 DROP PROCEDURE seed_assert_empty;
+
+-- Testni web racuni: Ana verificirana, Ivan neverificiran; ostali bez racuna.
+UPDATE buyer SET password_hash = '$2b$12$quPE9J6xONK/KHjwVT41rO7X7iYSP6Y/oNYyZL0Fv77AfdQ7IJz3a',
+ email_verified_at = CASE WHEN email = 'ana.horvat1@example.com' THEN NOW() ELSE NULL END,
+ is_active = TRUE
+WHERE email IN ('ana.horvat1@example.com', 'ivan.knezevic2@example.com')
+ AND password_hash IS NULL AND email_verified_at IS NULL AND is_active = TRUE;
 
 -- Kontrola: brojaci moraju biti uskladeni (ocekivano: 0)
 SELECT COUNT(*) AS neuskladjeni_brojaci FROM v_reserved_check;

@@ -4,7 +4,7 @@ services:
     container_name: eventhub-db
     restart: unless-stopped
     environment:
-      TZ: Europe/Zagreb                                   # NOW() u lokalnom vremenu
+      TZ: Europe/Zagreb                                   # OS zona; SQL sessioni su UTC
       MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
       EVENTHUB_APP_PASSWORD: ${EVENTHUB_APP_PASSWORD:?Postavi EVENTHUB_APP_PASSWORD u .env}
       EVENTHUB_REPORT_PASSWORD: ${EVENTHUB_REPORT_PASSWORD:?Postavi EVENTHUB_REPORT_PASSWORD u .env}
@@ -13,6 +13,7 @@ services:
       # Korisnike i njihove ovlasti stvara Liquibase.
     command:
       - --event-scheduler=ON
+      - --default-time-zone=+00:00
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     ports:
@@ -35,7 +36,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      LIQUIBASE_COMMAND_URL: jdbc:mariadb://db:3306/eventhub
+      LIQUIBASE_COMMAND_URL: jdbc:mariadb://db:3306/eventhub?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true
       LIQUIBASE_COMMAND_USERNAME: root
       LIQUIBASE_COMMAND_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Postavi MARIADB_ROOT_PASSWORD u .env}
       LIQUIBASE_COMMAND_CHANGELOG_FILE: migrations/db.changelog-master.xml

@@ -1,0 +1,1 @@
+PASS: rok 900 sekundi preko oba DST prijelaza u tri zone; zona pozivatelja sacuvana.

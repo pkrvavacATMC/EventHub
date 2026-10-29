@@ -1,0 +1,1 @@
+PASS: svih pet aplikacijskih procedura pozvano kao eventhub_app; lowercase check-in, refund=0 i pending cancel.

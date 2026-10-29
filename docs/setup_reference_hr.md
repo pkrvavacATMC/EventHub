@@ -1,120 +1,58 @@
-# EventHub — lokalna MariaDB baza
+# EventHub: lokalno testno okruzenje
 
-Potrebni su Docker s Compose dodatkom i SQL klijent (npr. DBeaver).
-Naredbe pokreni iz korijena projekta; primjeri koriste Bash/WSL.
+Aktualna shema koristi sest SQL datoteka 001-005; nema prijelaza starih podataka,
+adoption guarda, contexta ili posebnih rollback filtera. Za izmijenjenu pocetnu
+shemu resetira se testna baza prema [README-u](../README.md).
 
 ## Pokretanje
 
-```bash
-cp .env.example .env
-```
+1. U korijenu projekta kopiraj `.env.example` u `.env` ako datoteka jos ne postoji.
+2. Postavi tri razlicite lozinke, bez spremanja stvarnih lozinki u Git.
+3. Pokreni `docker compose up -d` i provjeri da je db healthy, a liquibase Exited (0).
+4. Jednom ucitaj `seed/01_seed.sql` na praznoj bazi prema README-u.
 
-U `.env` postavi tri vlastite, različite lozinke:
-`MARIADB_ROOT_PASSWORD`, `EVENTHUB_APP_PASSWORD` i `EVENTHUB_REPORT_PASSWORD`.
-Ako `.env` već postoji, uredi ga bez ponovnog kopiranja.
+Seed daje 8 evenata, 40 kupaca, 175 rezervacija i dev login primjere. Za nastavak
+rada ne pokrece se ponovno seed; Liquibase update se moze ponoviti i ne mijenja
+vec primijenjenu shemu.
 
-```bash
-docker compose up -d
-docker compose ps -a
-docker compose logs liquibase
-```
-
-Servis `db` treba imati status `healthy`. Port `3306` mora biti slobodan.
-Za dijagnostiku: `docker compose logs db`.
-Compose pričeka spremnost MariaDB-a i pokrene Liquibase `update`.
-MariaDB pri prvom pokretanju stvara praznu bazu `eventhub`, a Liquibase stvara
-korisnike, tablice, funkcije, triggere, procedure, event, viewove i ovlasti.
-Kod postojećeg volumena primjenjuje samo još neizvršene migracije.
-Nakon uspjeha servis `liquibase` ima status `Exited (0)`.
-
-Nakon `git pull` koji donosi nove migracije pokreni `docker compose up -d`.
-Za izričito ponovno izvršavanje provjere nad već spremnom bazom koristi:
-
-```bash
-docker compose run --rm --no-deps liquibase update
-```
-
-Sam `docker compose restart db` ne pokreće migracije.
-
-SQL migracije i prijelaz postojeće baze opisani su u
-[Liquibase — migracije](docs/liquibase.md).
-
-## Spajanje i provjera
-
-U DBeaveru napravi MariaDB vezu:
+## DBeaver
 
 | Postavka | Vrijednost |
-|---|---|
-| Host | `127.0.0.1` |
-| Port | `3306` |
-| Database | `eventhub` |
-| Username | `eventhub_app` |
-| Password | vrijednost `EVENTHUB_APP_PASSWORD` iz `.env` |
+| --- | --- |
+| Host i port | 127.0.0.1:3306 |
+| Baza | eventhub |
+| Poslovni korisnik | eventhub_app / EVENTHUB_APP_PASSWORD |
+| Citanje svih tablica | eventhub_report / EVENTHUB_REPORT_PASSWORD |
+| Administracija | root / MARIADB_ROOT_PASSWORD |
 
-Izvrši:
+Za poslovne CALL-ove ukljuci **Autocommit**; nemoj ih omotati vanjskom
+transakcijom. Na konekciji provjeri `SELECT DATABASE(), @@session.time_zone;`:
+baza eventhub, zona +00:00. Server i projektna JDBC konekcija forsiraju UTC;
+ako SQL klijent ima vlastitu inicijalizaciju, ona takodjer treba postaviti UTC.
 
-```sql
-SELECT CURRENT_USER();
-SELECT * FROM v_event_capacity LIMIT 5;
-```
+Sistemski datumi su TIMESTAMP. Samo event.event_date ostaje lokalni DATETIME,
+a zona dolazi iz grada lokacije. Nakon reseta koristi Refresh i ponovno otvori
+ERD. Performance baza se prije novih mjerenja obnavlja iz iste sheme, pa i u njoj
+sistemski stupci moraju biti TIMESTAMP.
 
-Na praznoj bazi drugi upit vraća prazan rezultat. `eventhub_app` smije pozivati
-poslovne procedure i čitati izvještajne viewove. Za čitanje svih tablica koristi
-`eventhub_report` i `EVENTHUB_REPORT_PASSWORD`; za administraciju `root` i
-`MARIADB_ROOT_PASSWORD`.
+[Struktura](02_database_structure.md), [migracije](liquibase.md),
+[zadnja validacija](10_schema_validation.md), [performanse](07_performanse.md).
 
-Ista provjera kroz SQL klijent unutar kontejnera:
+## Reprodukcija provjera
 
-```bash
-docker compose exec -T db sh -c 'MYSQL_PWD="$EVENTHUB_APP_PASSWORD" mariadb -ueventhub_app eventhub -e "SELECT CURRENT_USER(); SELECT * FROM v_event_capacity LIMIT 5;"'
-```
-
-## Testni podaci (opcionalno)
-
-Na praznoj bazi jednom pokreni realni seed (8 događaja i 175 rezervacija):
+Prvo pripremi Python okruzenje i `bcrypt` prema [preduvjetima u README-u](../README.md#tehnologije-i-preduvjeti).
+Automatski test stvara vlastitu praznu bazu i ne treba lokalni `.env`.
 
 ```bash
-docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot eventhub' < seed/01_seed.sql
-```
-
-Za zasebnu performance bazu:
-
-```bash
+python3 tests/test_database.py
+# Cisti eventhub seed, zatim novi performance skup:
 bash perf/00_create_perf_db.sh
 docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot' < perf/01_generate_100k.sql
+# Stari series.tsv i manifest prvo arhiviraj izvan perf/results.
+python3 perf/run_series.py
+python3 docs/render_docs.py
 ```
 
-Prva naredba briše postojeću `eventhub_perf` i kopira glavnu bazu u nju.
-Druga dodaje 100.000 rezervacija (uz 175 kopiranih iz realnog seeda).
-Glavna baza ostaje nepromijenjena. Za vezu na `eventhub_perf` koristi isti
-host, port i root pristup; mijenja se samo naziv baze.
-
-## Pohrana i zaustavljanje
-
-Podaci su u Docker volumenu `db_data` i ostaju nakon restarta ili
-`docker compose down`. Zaustavljanje i ponovno pokretanje:
-
-```bash
-docker compose down
-docker compose up -d
-```
-
-Za provjeru postojanosti nakon seeda zabilježi rezultat
-`SELECT COUNT(*) FROM reservation;` kroz korisnika `eventhub_report`, pokreni
-`docker compose restart db`, pričekaj status `healthy` i ponovi upit.
-
-**Nemoj koristiti `docker compose down -v` ako želiš sačuvati podatke:**
-briše volumen s obje baze. Promjena `.env` ne mijenja već stvorene lozinke.
-
-`.env` je ignoriran Gitom. Commitaj samo `.env.example` bez stvarnih lozinki.
-
-## Izvještaji
-
-Osam izvještaja i PASS/FAIL provjere za realni seed nalaze se u `reports/`.
-Naredbe, definicije i očekivani rezultati: [Task 4 — Izvještaji](docs/04_izvjestaji.md).
-
-## Analiza performansi (Task 7)
-
-Ponovljiva mjerenja nad 100.175 rezervacija, EXPLAIN planovi, odluke o indeksima,
-trosak pisanja/prostora i rezultati regresijskih provjera:
-[Task 7 — Performanse](docs/07_performanse.md).
+Docker volumen cuva podatke pri `down`/`up`. `down -v` brise sve baze na volumenu.
+Za novi performance skup zamjenjuje se samo eventhub_perf. Povrat backupa i
+ovlasti opisani su u [administraciji](08_administracija.md).

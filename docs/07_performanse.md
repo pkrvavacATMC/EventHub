@@ -1,87 +1,25 @@
-# TASK 7 - Analiza performansi
+# Analiza performansi nove testne sheme
 
-## Sazetak
+Mjerenje zavrseno 2026-10-29T15:22:43.337401+00:00. MariaDB 10.11.19-MariaDB-ubu2204; session UTC; 100175 rezervacija i 189133 karata. Buffer pool: 134217728 bajtova.
 
-| Medijani (ms) | Q1 | Q2 | Q3 | Q4 | Q5 | INSERT |
-| --- | --- | --- | --- | --- | --- | --- |
-| A | 82.37 | 804.00 | 116.81 | 0.12 | 30.97 | 90.49 |
-| B | 73.57 | 321.98 | 0.08 | 0.05 | 0.32 | 97.33 |
+Performance baza je ponovno stvorena iz aktualnog cistog seeda i prosirena za 100.000 rezervacija. Koristi 12 TIMESTAMP stupaca, lokalni event_date, IANA zone i ASCII kod karte. Stara mjerenja nisu ukljucena u ove rezultate.
 
-Zadrzavamo uske indekse (B); A je stanje bez analiziranih indeksa.
-Indeks kupca odbacujemo: mala usteda Q4 prati +50.9 % INSERT-a u reservation.
-Pokrivajuci indeks povrata odbacujemo radi prostora i jednostavnosti; njegova cijena pisanja nije izmjerena.
+## Postupak
 
-Konacni izbor ostaje uski `idx_res_confirmed_at(confirmed_at)` i
-`idx_ticket_cancelled_at(cancelled_at)`. FK/UNIQUE i ostali postojeci operativni
-indeksi ostaju. Sve usporedbe u ovom dokumentu potjecu iskljucivo iz jednog novog
-niza mjerenja; stara neusporediva mjerenja su obrisana.
+Jedna MariaDB sesija, tri A-D kruga; jedno zagrijavanje i pet mjerenja po upitu/krugu. Medijan je iz svih 15 uzoraka, uz min-max. Query cache OFF, SQL_NO_CACHE; buffer pool nije praznjen. Fiksni redoslijed i OS sum ostaju ogranicenja. ANALYZE instrumentacija ulazi u vrijeme.
 
-## Skup podataka i okruzenje
-
-MariaDB 10.11.19-MariaDB-ubu2204, InnoDB, Docker `eventhub-db`, buffer pool
-134217728 bajtova. `eventhub_perf` sadrzi 100.175 rezervacija i
-189.133 karte: kopirani seed i 100.000 rezervacija iz `perf/01_generate_100k.sql`.
-Postojeci skup zadovoljava prag; u ovoj reviziji nije regeneriran niti obnovljen.
-`v_reserved_check` na kraju vraca 0 odstupanja. Perf scheduler je iskljucen.
-
-## Postupak i ponavljanje
-
-Iz korijena projekta, uz vec pripremljeni eventhub_perf:
-
-```bash
-# Prije novog pokretanja sacuvaj prethodni series.tsv i series_manifest.json
-# u zasebnu mapu; runner odbija prepisati postojeci series.tsv.
-python3 perf/run_series.py
-python3 perf/summarize.py --document > docs/07_performanse.md
-```
-
-Ako performance baza nedostaje, prvo `bash perf/00_create_perf_db.sh` pa
-`perf/01_generate_100k.sql` prema uputama generatora. To nije potrebno za ponavljanje
-samih mjerenja i zamjenjuje postojecu performance kopiju.
-
-Runner koristi jedan `docker exec` i jedan `mariadb --batch` proces/vezu. U toj
-istoj sesiji redom izvrsava A, B, C, D, pa cijeli niz ponavlja ukupno tri puta:
-
-| Konfiguracija | Skripte i stanje |
+| Konfiguracija | Opis |
 | --- | --- |
-| A | 02_baseline.sql: bez analiziranih indeksa |
-| B | 03_add_indexes.sql + 04_after.sql: dva konacna uska indeksa |
-| C | 07_rejected_indexes.sql + 04_after.sql: uski datum potvrde, indeks kupca i pokrivajuci povrati |
-| D | 06_rejected_cover.sql: siri datum potvrde uz iste ostale kandidate kao C |
+| A | Bez analiziranih indeksa |
+| B | Konacni uski |
+| C | Kupac + pokrivajuci povrati |
+| D | Siri indeks potvrda + C |
 
-Nakon treceg D runner izvrsava **02 -> 03** za povrat konacnog stanja. Mjerenja
-koja se zbog sadrzaja 02 izvrse tijekom povrata oznacena su SERIES_RESTORE i
-iskljucena iz statistike. Upiti, indeksi konfiguracija i SQL datoteke 02/03/04/06/07
-nisu mijenjani u ovoj reviziji.
+A uklanja samo kandidate; PK/UNIQUE/FK i operativni indeksi ostaju. B koristi dva uska datumska indeksa. C dodaje povijest kupca i pokrivajuce povrate; D prosiruje i indeks potvrda. Na kraju se vraca B.
 
-Sesija CONNECTION_ID=308; pocetak 2026-10-28 13:11:37.080835, kraj
-2026-10-28 13:13:01.086351 (vrijeme servera). `series.tsv` sadrzi oznake svakog kruga,
-iste CONNECTION_ID vrijednosti, sve sirove planove i popis indeksa svake
-konfiguracije. `series_manifest.json` biljezi SHA-256 izvrsenih SQL datoteka,
-rezultata, UTC vrijeme pokretanja i izlazni kod. `summarize.py` provjerava hash
-rezultata, istu sesiju, redoslijed 12 konfiguracija, broj uzoraka i stvarne indekse.
+Q3 i Q5 koriste UTC datumske granice jer je session UTC; Q2 koristi poslovne mjesece u Europe/Zagreb. Za lokalni dan ili mjesec granice se prvo pretvore u UTC, a indeksirani stupac ostaje bez funkcije.
 
-Za svaki upit i INSERT u svakom krugu izvrsava se jedno zagrijavanje i pet
-mjerenja. Konacna vrijednost je **medijan svih 15 pojedinacnih mjerenja**, a ne
-medijan triju medijana. Prikazan je min-max svih 15 uzoraka. Query cache je OFF,
-SELECT koristi SQL_NO_CACHE; InnoDB buffer pool nije praznjen. To je usporedba
-zagrijanog rada, ne hladnog diska. U fiksnom A-D redoslijedu mogu ostati vremenski
-trendovi i utjecaj OS-a; tri kruga i rasponi ih pokazuju, ali ih potpuno ne uklanjaju.
-
-Vremena SELECT-a su korijenski `query_block.r_total_time_ms` iz ANALYZE JSON-a:
-ukljucuju instrumentaciju, ne pokretanje Dockera ni prijenos rezultata klijentu.
-Podcvorovi se ne zbrajaju jer vec ulaze u roditelja. `EXPLAIN.rows` je procjena,
-`r_rows` prosjecan stvarni broj po petlji; ukupni dohvati ovise i o `r_loops`.
-[MariaDB: ANALYZE FORMAT=JSON](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/analyze-and-explain-statements/analyze-format-json).
-
-Baseline ne uklanja PK/UNIQUE/FK indekse. `idx_res_event_status` je ujedno potporni
-indeks fk_res_event, a fk_res_buyer se osigurava prije brisanja kandidata s istim
-lijevim prefiksom. idx_res_status_expires i idx_event_date nisu kandidati ovog testa.
-Q1/Q2 ovdje su Task 4 Q2/Q8; Q3-Q5 su dodatni selektivni upiti. Viewovi, triggeri,
-procedure, podaci i SQL upiti ostaju isti.
-
-Stara neusporediva mjerenja su obrisana. Jedini izvor usporedbi je
-**perf/results/series.tsv** s tri A-D kruga u istoj sesiji.
+Manifest biljezi hash sheme, generatora, upita i rezultata te stvarne tipove stupaca. Parser provjerava iste podatke u svim krugovima i stvarne indekse konfiguracija.
 
 ## Izmjerena vremena
 
@@ -89,28 +27,28 @@ Samo series.tsv: jedna MariaDB sesija, tri uzastopna A-D kruga. Svaka celija: me
 
 | Upit | A: Bez analiziranih indeksa | B: Konacni uski | C: Kupac + pokrivajuci povrati | D: Siri indeks potvrda + C |
 | --- | --- | --- | --- | --- |
-| Q1 | 82.4 [69.2-88.0] | 73.6 [61.8-95.4] | 70.0 [61.0-102.7] | 82.2 [66.8-94.1] |
-| Q2 | 804.0 [710.4-874.1] | 322.0 [270.1-374.9] | 293.4 [267.5-316.6] | 365.1 [291.1-441.4] |
-| Q3 | 116.8 [101.9-131.2] | 0.077 [0.062-0.149] | 0.072 [0.058-0.223] | 0.086 [0.061-0.123] |
-| Q4 | 0.123 [0.064-0.299] | 0.052 [0.040-0.121] | 0.026 [0.021-0.057] | 0.029 [0.020-0.038] |
-| Q5 | 31.0 [27.9-42.7] | 0.317 [0.259-0.633] | 0.072 [0.062-0.157] | 0.082 [0.061-0.092] |
+| Q1 | 130.4 [99.1-173.8] | 109.1 [90.9-149.6] | 110.6 [95.9-149.0] | 120.7 [93.7-171.6] |
+| Q2 | 1246.7 [1110.7-1389.0] | 524.0 [457.6-594.7] | 499.4 [451.5-606.6] | 593.1 [530.7-758.7] |
+| Q3 | 206.3 [165.3-285.0] | 0.144 [0.097-0.278] | 0.107 [0.093-0.142] | 0.206 [0.117-0.348] |
+| Q4 | 0.079 [0.061-0.162] | 0.075 [0.061-0.141] | 0.034 [0.025-0.040] | 0.067 [0.033-0.077] |
+| Q5 | 58.2 [41.3-75.6] | 0.709 [0.376-1.2] | 0.096 [0.091-0.117] | 0.180 [0.101-0.278] |
 
 ### Medijani pojedinih krugova
 
 | Krug | Konfiguracija | Q1 | Q2 | Q3 | Q4 | Q5 | INSERT ms |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | A | 78.4 | 795.9 | 128.3 | 0.150 | 31.8 | 83.6 |
-| 1 | B | 72.4 | 345.6 | 0.083 | 0.052 | 0.508 | 115.0 |
-| 1 | C | 68.9 | 296.5 | 0.072 | 0.024 | 0.070 | 145.5 |
-| 1 | D | 82.2 | 359.9 | 0.088 | 0.029 | 0.088 | 162.9 |
-| 2 | A | 82.4 | 804.0 | 110.7 | 0.101 | 30.1 | 89.1 |
-| 2 | B | 74.3 | 297.0 | 0.066 | 0.045 | 0.278 | 100.6 |
-| 2 | C | 69.1 | 281.6 | 0.069 | 0.035 | 0.076 | 156.3 |
-| 2 | D | 82.5 | 394.6 | 0.090 | 0.029 | 0.089 | 151.3 |
-| 3 | A | 83.4 | 818.5 | 117.4 | 0.151 | 31.0 | 101.6 |
-| 3 | B | 65.8 | 328.1 | 0.077 | 0.053 | 0.317 | 95.3 |
-| 3 | C | 93.6 | 293.4 | 0.120 | 0.023 | 0.118 | 146.8 |
-| 3 | D | 79.7 | 345.6 | 0.066 | 0.027 | 0.063 | 161.1 |
+| 1 | A | 149.1 | 1302.1 | 225.3 | 0.085 | 60.7 | 182.0 |
+| 1 | B | 108.9 | 536.9 | 0.107 | 0.082 | 0.709 | 163.6 |
+| 1 | C | 116.9 | 471.2 | 0.105 | 0.037 | 0.098 | 243.2 |
+| 1 | D | 125.6 | 671.6 | 0.122 | 0.037 | 0.173 | 248.0 |
+| 2 | A | 148.9 | 1276.9 | 199.8 | 0.075 | 52.6 | 156.5 |
+| 2 | B | 137.3 | 519.8 | 0.150 | 0.094 | 0.902 | 153.0 |
+| 2 | C | 107.6 | 478.2 | 0.105 | 0.029 | 0.096 | 207.9 |
+| 2 | D | 113.6 | 583.9 | 0.206 | 0.067 | 0.177 | 202.3 |
+| 3 | A | 109.4 | 1206.3 | 201.5 | 0.078 | 54.7 | 146.9 |
+| 3 | B | 109.1 | 518.9 | 0.182 | 0.066 | 0.409 | 149.3 |
+| 3 | C | 109.6 | 505.6 | 0.108 | 0.032 | 0.095 | 218.3 |
+| 3 | D | 131.6 | 580.3 | 0.229 | 0.068 | 0.180 | 199.1 |
 
 ## SQL, EXPLAIN i stvarni redci
 
@@ -131,7 +69,7 @@ ORDER BY reservations DESC, buyer_id;
 
 | id | select_type | tablica | type | key | rows | Extra |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | SIMPLE | b | ALL | NULL | 5043 | Using temporary; Using filesort |
+| 1 | SIMPLE | b | ALL | NULL | 5085 | Using temporary; Using filesort |
 | 1 | SIMPLE | r | ref | fk_res_buyer | 9 | Using index |
 
 ANALYZE, krug 1, mjerenje 1:
@@ -141,14 +79,14 @@ ANALYZE, krug 1, mjerenje 1:
 | b | ALL | - | 1 | 5040 |
 | r | ref | fk_res_buyer | 5040 | 19.87599206 |
 
-15 vremena (ms), redom krugovi 1-3: 83.4, 78.4, 77.3, 69.3, 84.4, 75.2, 84.6, 87.8, 82.4, 69.2, 83.4, 88.0, 80.6, 83.5, 75.3.
+15 vremena (ms), redom krugovi 1-3: 105.0, 128.1, 157.5, 165.9, 149.1, 157.7, 130.5, 148.9, 113.7, 173.8, 109.4, 99.1, 112.2, 130.4, 104.1.
 
 **B: Konacni uski - EXPLAIN, krug 1**
 
 | id | select_type | tablica | type | key | rows | Extra |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | SIMPLE | b | ALL | NULL | 5043 | Using temporary; Using filesort |
-| 1 | SIMPLE | r | ref | fk_res_buyer | 10 | Using index |
+| 1 | SIMPLE | b | ALL | NULL | 5085 | Using temporary; Using filesort |
+| 1 | SIMPLE | r | ref | fk_res_buyer | 9 | Using index |
 
 ANALYZE, krug 1, mjerenje 1:
 
@@ -157,14 +95,14 @@ ANALYZE, krug 1, mjerenje 1:
 | b | ALL | - | 1 | 5040 |
 | r | ref | fk_res_buyer | 5040 | 19.87599206 |
 
-15 vremena (ms), redom krugovi 1-3: 73.6, 69.3, 71.7, 72.4, 73.6, 74.3, 74.1, 82.1, 88.9, 68.4, 61.8, 74.0, 63.8, 65.8, 95.4.
+15 vremena (ms), redom krugovi 1-3: 90.9, 108.9, 149.6, 125.1, 97.9, 142.1, 137.3, 101.2, 142.4, 101.4, 109.1, 96.9, 112.7, 134.5, 101.1.
 
 **C: Kupac + pokrivajuci povrati - EXPLAIN, krug 1**
 
 | id | select_type | tablica | type | key | rows | Extra |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | SIMPLE | b | ALL | NULL | 5043 | Using temporary; Using filesort |
-| 1 | SIMPLE | r | ref | fk_res_buyer | 10 | Using index |
+| 1 | SIMPLE | b | ALL | NULL | 5085 | Using temporary; Using filesort |
+| 1 | SIMPLE | r | ref | fk_res_buyer | 9 | Using index |
 
 ANALYZE, krug 1, mjerenje 1:
 
@@ -173,13 +111,13 @@ ANALYZE, krug 1, mjerenje 1:
 | b | ALL | - | 1 | 5040 |
 | r | ref | fk_res_buyer | 5040 | 19.87599206 |
 
-15 vremena (ms), redom krugovi 1-3: 69.4, 68.9, 68.6, 74.4, 61.0, 102.7, 65.7, 69.1, 62.9, 70.0, 76.4, 77.2, 94.6, 93.6, 95.0.
+15 vremena (ms), redom krugovi 1-3: 116.9, 108.0, 149.0, 126.2, 110.6, 135.0, 128.3, 106.9, 97.9, 107.6, 95.9, 109.6, 148.4, 100.5, 112.3.
 
 **D: Siri indeks potvrda + C - EXPLAIN, krug 1**
 
 | id | select_type | tablica | type | key | rows | Extra |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | SIMPLE | b | ALL | NULL | 5043 | Using temporary; Using filesort |
+| 1 | SIMPLE | b | ALL | NULL | 5085 | Using temporary; Using filesort |
 | 1 | SIMPLE | r | ref | fk_res_buyer | 10 | Using index |
 
 ANALYZE, krug 1, mjerenje 1:
@@ -189,7 +127,7 @@ ANALYZE, krug 1, mjerenje 1:
 | b | ALL | - | 1 | 5040 |
 | r | ref | fk_res_buyer | 5040 | 19.87599206 |
 
-15 vremena (ms), redom krugovi 1-3: 66.8, 77.7, 93.1, 82.2, 87.0, 76.7, 94.1, 89.6, 79.1, 82.5, 74.7, 73.0, 79.7, 88.2, 83.3.
+15 vremena (ms), redom krugovi 1-3: 124.9, 150.4, 100.0, 171.6, 125.6, 116.9, 113.6, 105.0, 120.7, 108.7, 93.7, 101.0, 152.1, 145.9, 131.6.
 
 ### Q2 - Mjesecni trend prihoda (Task 4 Q8)
 
@@ -207,13 +145,13 @@ GROUP BY month ORDER BY month;
 
 | id | select_type | tablica | type | key | rows | Extra |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | PRIMARY | <derived2> | ALL | NULL | 173888 | Using temporary; Using filesort |
+| 1 | PRIMARY | <derived2> | ALL | NULL | 173367 | Using temporary; Using filesort |
 | 2 | DERIVED | e | ALL | NULL | 58 | Using temporary; Using filesort |
-| 2 | DERIVED | <derived3> | ref | key0 | 2998 |  |
+| 2 | DERIVED | <derived3> | ref | key0 | 2989 |  |
 | 3 | DERIVED | ri | ALL | NULL | 100152 | Using temporary; Using filesort |
 | 3 | DERIVED | r | eq_ref | PRIMARY | 1 | Using where |
-| 4 | UNION | r | ALL | NULL | 99828 | Using where; Using temporary; Using filesort |
-| 5 | UNION | r | index | idx_res_event_status | 99828 | Using index; Using temporary; Using filesort |
+| 4 | UNION | r | ALL | NULL | 99379 | Using where; Using temporary; Using filesort |
+| 5 | UNION | r | index | idx_res_event_status | 99379 | Using index; Using temporary; Using filesort |
 | 5 | UNION | ri | ref | fk_item_reservation | 1 | Using index |
 | 5 | UNION | tk | ref | fk_ticket_item | 1 | Using where |
 
@@ -231,18 +169,18 @@ ANALYZE, krug 1, mjerenje 1:
 | ri | ref | fk_item_reservation | 100175 | 1.000539057 |
 | tk | ref | fk_ticket_item | 100229 | 1.88700875 |
 
-15 vremena (ms), redom krugovi 1-3: 795.9, 844.4, 710.4, 748.1, 874.1, 848.9, 804.0, 870.1, 778.9, 756.3, 818.5, 762.2, 831.0, 788.1, 827.0.
+15 vremena (ms), redom krugovi 1-3: 1233.5, 1218.5, 1387.4, 1389.0, 1302.1, 1276.9, 1295.9, 1278.4, 1110.7, 1217.1, 1146.9, 1206.3, 1246.7, 1121.8, 1251.2.
 
 **B: Konacni uski - EXPLAIN, krug 1**
 
 | id | select_type | tablica | type | key | rows | Extra |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | PRIMARY | <derived2> | ALL | NULL | 60213 | Using temporary; Using filesort |
+| 1 | PRIMARY | <derived2> | ALL | NULL | 59898 | Using temporary; Using filesort |
 | 2 | DERIVED | e | ALL | NULL | 58 | Using temporary; Using filesort |
-| 2 | DERIVED | <derived3> | ref | key0 | 1038 |  |
-| 3 | DERIVED | r | ALL | NULL | 99828 | Using where; Using temporary; Using filesort |
+| 2 | DERIVED | <derived3> | ref | key0 | 1032 |  |
+| 3 | DERIVED | r | ALL | NULL | 99287 | Using where; Using temporary; Using filesort |
 | 3 | DERIVED | ri | ref | fk_item_reservation | 1 |  |
-| 4 | UNION | r | ALL | NULL | 99828 | Using where; Using temporary; Using filesort |
+| 4 | UNION | r | ALL | NULL | 99287 | Using where; Using temporary; Using filesort |
 | 5 | UNION | tk | range | idx_ticket_cancelled_at | 3988 | Using index condition; Using temporary; Using filesort |
 | 5 | UNION | ri | eq_ref | PRIMARY | 1 |  |
 | 5 | UNION | r | eq_ref | PRIMARY | 1 |  |
@@ -261,18 +199,18 @@ ANALYZE, krug 1, mjerenje 1:
 | ri | eq_ref | PRIMARY | 3988 | 1 |
 | r | eq_ref | PRIMARY | 3988 | 1 |
 
-15 vremena (ms), redom krugovi 1-3: 300.8, 359.7, 339.7, 345.6, 372.8, 307.9, 297.0, 288.6, 281.5, 305.9, 374.9, 371.7, 328.1, 322.0, 270.1.
+15 vremena (ms), redom krugovi 1-3: 524.0, 482.9, 536.9, 594.1, 566.3, 562.1, 479.3, 519.8, 457.6, 594.7, 502.9, 524.4, 518.9, 577.5, 479.6.
 
 **C: Kupac + pokrivajuci povrati - EXPLAIN, krug 1**
 
 | id | select_type | tablica | type | key | rows | Extra |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | PRIMARY | <derived2> | ALL | NULL | 60202 | Using temporary; Using filesort |
+| 1 | PRIMARY | <derived2> | ALL | NULL | 59864 | Using temporary; Using filesort |
 | 2 | DERIVED | e | ALL | NULL | 58 | Using temporary; Using filesort |
-| 2 | DERIVED | <derived3> | ref | key0 | 1037 |  |
-| 3 | DERIVED | r | ALL | NULL | 99810 | Using where; Using temporary; Using filesort |
+| 2 | DERIVED | <derived3> | ref | key0 | 1032 |  |
+| 3 | DERIVED | r | ALL | NULL | 99226 | Using where; Using temporary; Using filesort |
 | 3 | DERIVED | ri | ref | fk_item_reservation | 1 |  |
-| 4 | UNION | r | ALL | NULL | 99810 | Using where; Using temporary; Using filesort |
+| 4 | UNION | r | ALL | NULL | 99226 | Using where; Using temporary; Using filesort |
 | 5 | UNION | tk | range | idx_ticket_refund_cover | 3988 | Using where; Using index; Using temporary; Using filesort |
 | 5 | UNION | ri | eq_ref | PRIMARY | 1 |  |
 | 5 | UNION | r | eq_ref | PRIMARY | 1 |  |
@@ -291,18 +229,18 @@ ANALYZE, krug 1, mjerenje 1:
 | ri | eq_ref | PRIMARY | 3988 | 1 |
 | r | eq_ref | PRIMARY | 3988 | 1 |
 
-15 vremena (ms), redom krugovi 1-3: 277.0, 297.6, 312.3, 285.8, 296.5, 309.7, 280.2, 267.5, 281.6, 305.5, 292.0, 303.9, 293.4, 316.6, 280.7.
+15 vremena (ms), redom krugovi 1-3: 540.1, 471.2, 470.9, 591.0, 453.5, 461.5, 478.2, 606.6, 546.2, 451.5, 582.1, 534.6, 495.8, 499.4, 505.6.
 
 **D: Siri indeks potvrda + C - EXPLAIN, krug 1**
 
 | id | select_type | tablica | type | key | rows | Extra |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | PRIMARY | <derived2> | ALL | NULL | 60213 | Using temporary; Using filesort |
+| 1 | PRIMARY | <derived2> | ALL | NULL | 59898 | Using temporary; Using filesort |
 | 2 | DERIVED | e | ALL | NULL | 58 | Using temporary; Using filesort |
-| 2 | DERIVED | <derived3> | ref | key0 | 1038 |  |
-| 3 | DERIVED | r | range | idx_res_confirmed_cover | 49914 | Using where; Using index; Using temporary; Using filesort |
+| 2 | DERIVED | <derived3> | ref | key0 | 1032 |  |
+| 3 | DERIVED | r | range | idx_res_confirmed_cover | 49643 | Using where; Using index; Using temporary; Using filesort |
 | 3 | DERIVED | ri | ref | fk_item_reservation | 1 |  |
-| 4 | UNION | r | range | idx_res_confirmed_cover | 49914 | Using where; Using index; Using temporary; Using filesort |
+| 4 | UNION | r | range | idx_res_confirmed_cover | 49643 | Using where; Using index; Using temporary; Using filesort |
 | 5 | UNION | tk | range | idx_ticket_refund_cover | 3988 | Using where; Using index; Using temporary; Using filesort |
 | 5 | UNION | ri | eq_ref | PRIMARY | 1 |  |
 | 5 | UNION | r | eq_ref | PRIMARY | 1 |  |
@@ -321,11 +259,11 @@ ANALYZE, krug 1, mjerenje 1:
 | ri | eq_ref | PRIMARY | 3988 | 1 |
 | r | eq_ref | PRIMARY | 3988 | 1 |
 
-15 vremena (ms), redom krugovi 1-3: 359.9, 426.0, 354.6, 357.2, 371.6, 441.4, 342.5, 394.6, 365.1, 410.4, 389.7, 367.7, 345.6, 301.3, 291.1.
+15 vremena (ms), redom krugovi 1-3: 737.3, 671.6, 758.7, 668.5, 591.3, 583.9, 553.3, 530.7, 607.8, 596.8, 593.1, 652.4, 580.3, 556.4, 567.8.
 
-### Q3 - Bruto prodaja u jednom danu
+### Q3 - Bruto prodaja u jednom UTC danu
 
-Tipican dnevni financijski pregled. Poluotvoreni raspon datuma ostaje sargable. Ovo je bruto cijena karata i service fee, bez zastite i povrata. COUNT(DISTINCT r.id) sprjecava visestruko brojanje rezervacije s vise stavki. Datumski indeks izdvaja mali skup umjesto obilaska svih stavki.
+Selektivni dnevni pregled u UTC-u. Poluotvoreni raspon datuma ostaje sargable. Ovo je bruto cijena karata i service fee, bez zastite i povrata. COUNT(DISTINCT r.id) sprjecava visestruko brojanje rezervacije s vise stavki. Datumski indeks izdvaja mali skup umjesto obilaska svih stavki.
 
 ```sql
 SELECT SQL_NO_CACHE COUNT(DISTINCT r.id) AS reservations,
@@ -348,7 +286,7 @@ ANALYZE, krug 1, mjerenje 1:
 | ri | ALL | - | 1 | 100229 |
 | r | eq_ref | PRIMARY | 100229 | 1 |
 
-15 vremena (ms), redom krugovi 1-3: 128.3, 130.5, 109.2, 108.0, 130.8, 101.9, 110.7, 105.9, 116.8, 131.2, 125.2, 118.8, 114.5, 117.4, 109.8.
+15 vremena (ms), redom krugovi 1-3: 213.0, 225.3, 285.0, 271.4, 216.5, 188.6, 205.8, 236.2, 165.3, 199.8, 195.6, 170.1, 215.0, 206.3, 201.5.
 
 **B: Konacni uski - EXPLAIN, krug 1**
 
@@ -364,7 +302,7 @@ ANALYZE, krug 1, mjerenje 1:
 | r | range | idx_res_confirmed_at | 1 | 22 |
 | ri | ref | fk_item_reservation | 22 | 1 |
 
-15 vremena (ms), redom krugovi 1-3: 0.083, 0.081, 0.075, 0.131, 0.116, 0.075, 0.119, 0.066, 0.062, 0.064, 0.078, 0.074, 0.077, 0.065, 0.149.
+15 vremena (ms), redom krugovi 1-3: 0.127, 0.107, 0.097, 0.103, 0.178, 0.132, 0.144, 0.168, 0.150, 0.187, 0.278, 0.212, 0.123, 0.182, 0.105.
 
 **C: Kupac + pokrivajuci povrati - EXPLAIN, krug 1**
 
@@ -380,7 +318,7 @@ ANALYZE, krug 1, mjerenje 1:
 | r | range | idx_res_confirmed_at | 1 | 22 |
 | ri | ref | fk_item_reservation | 22 | 1 |
 
-15 vremena (ms), redom krugovi 1-3: 0.085, 0.112, 0.072, 0.062, 0.059, 0.097, 0.069, 0.065, 0.090, 0.065, 0.223, 0.120, 0.131, 0.061, 0.058.
+15 vremena (ms), redom krugovi 1-3: 0.115, 0.105, 0.107, 0.095, 0.093, 0.112, 0.105, 0.109, 0.105, 0.101, 0.142, 0.106, 0.108, 0.107, 0.114.
 
 **D: Siri indeks potvrda + C - EXPLAIN, krug 1**
 
@@ -396,11 +334,11 @@ ANALYZE, krug 1, mjerenje 1:
 | r | range | idx_res_confirmed_cover | 1 | 22 |
 | ri | ref | fk_item_reservation | 22 | 1 |
 
-15 vremena (ms), redom krugovi 1-3: 0.073, 0.100, 0.088, 0.091, 0.067, 0.087, 0.123, 0.094, 0.086, 0.090, 0.073, 0.073, 0.066, 0.064, 0.061.
+15 vremena (ms), redom krugovi 1-3: 0.134, 0.127, 0.117, 0.118, 0.122, 0.206, 0.218, 0.194, 0.315, 0.193, 0.229, 0.268, 0.219, 0.211, 0.348.
 
 ### Q4 - Povijest jednog kupca
 
-Cest ekran zadnjih 10 rezervacija. @buyer=41 ima 22 rezervacije. A/B koriste fk_res_buyer uz filesort malog skupa. C/D koriste indeks buyer_id,created_at,id, uklanjaju filesort i prekidaju nakon 10 redaka. Isplativost se procjenjuje prema apsolutnoj ustedi, prostoru i INSERT-u u ovom nizu.
+Ekran zadnjih 10 rezervacija jednog kupca u generiranom skupu. A/B koriste fk_res_buyer uz filesort malog skupa. C/D koriste indeks buyer_id,created_at,id, uklanjaju filesort i prekidaju nakon 10 redaka. Isplativost se procjenjuje prema apsolutnoj ustedi, prostoru i INSERT-u u ovom nizu.
 
 ```sql
 SELECT SQL_NO_CACHE id, event_id, status, created_at
@@ -420,7 +358,7 @@ ANALYZE, krug 1, mjerenje 1:
 | --- | --- | --- | --- | --- |
 | reservation | ref | fk_res_buyer | 1 | 22 |
 
-15 vremena (ms), redom krugovi 1-3: 0.153, 0.150, 0.171, 0.114, 0.123, 0.105, 0.064, 0.101, 0.179, 0.091, 0.299, 0.161, 0.118, 0.151, 0.100.
+15 vremena (ms), redom krugovi 1-3: 0.162, 0.083, 0.083, 0.117, 0.085, 0.076, 0.075, 0.094, 0.065, 0.061, 0.087, 0.065, 0.079, 0.078, 0.071.
 
 **B: Konacni uski - EXPLAIN, krug 1**
 
@@ -434,7 +372,7 @@ ANALYZE, krug 1, mjerenje 1:
 | --- | --- | --- | --- | --- |
 | reservation | ref | fk_res_buyer | 1 | 22 |
 
-15 vremena (ms), redom krugovi 1-3: 0.052, 0.041, 0.062, 0.121, 0.044, 0.065, 0.045, 0.063, 0.040, 0.040, 0.092, 0.049, 0.075, 0.053, 0.050.
+15 vremena (ms), redom krugovi 1-3: 0.129, 0.061, 0.073, 0.116, 0.082, 0.094, 0.075, 0.067, 0.104, 0.141, 0.079, 0.067, 0.066, 0.062, 0.066.
 
 **C: Kupac + pokrivajuci povrati - EXPLAIN, krug 1**
 
@@ -448,7 +386,7 @@ ANALYZE, krug 1, mjerenje 1:
 | --- | --- | --- | --- | --- |
 | reservation | ref | idx_res_buyer_created | 1 | 10 |
 
-15 vremena (ms), redom krugovi 1-3: 0.024, 0.021, 0.022, 0.056, 0.027, 0.037, 0.035, 0.026, 0.022, 0.057, 0.023, 0.022, 0.055, 0.023, 0.031.
+15 vremena (ms), redom krugovi 1-3: 0.037, 0.037, 0.030, 0.038, 0.034, 0.036, 0.029, 0.026, 0.025, 0.036, 0.032, 0.040, 0.036, 0.029, 0.027.
 
 **D: Siri indeks potvrda + C - EXPLAIN, krug 1**
 
@@ -462,11 +400,11 @@ ANALYZE, krug 1, mjerenje 1:
 | --- | --- | --- | --- | --- |
 | reservation | ref | idx_res_buyer_created | 1 | 10 |
 
-15 vremena (ms), redom krugovi 1-3: 0.029, 0.027, 0.037, 0.025, 0.034, 0.030, 0.028, 0.038, 0.029, 0.028, 0.027, 0.020, 0.020, 0.036, 0.038.
+15 vremena (ms), redom krugovi 1-3: 0.053, 0.037, 0.045, 0.035, 0.033, 0.077, 0.067, 0.063, 0.070, 0.059, 0.076, 0.068, 0.067, 0.068, 0.077.
 
-### Q5 - Povrati u mjesecu
+### Q5 - Povrati u UTC mjesecu
 
-Tipican selektivan financijski pregled. A cita cijelu tablicu ticket. B range cita mjesec povrata i dohvaca refund_amount iz tablice; C/D pokrivaju SUM indeksom. Uzi indeks vec uklanja full scan; dodatna pokrivenost ima dodatni trosak.
+Selektivni pregled UTC mjeseca. A cita cijelu tablicu ticket. B range cita mjesec povrata i dohvaca refund_amount iz tablice; C/D pokrivaju SUM indeksom. Uzi indeks vec uklanja full scan; dodatna pokrivenost ima dodatni trosak.
 
 ```sql
 SELECT SQL_NO_CACHE COUNT(*) AS refunded_tickets, SUM(refund_amount) AS refunds
@@ -477,7 +415,7 @@ FROM ticket WHERE cancelled_at >= '2026-06-01' AND cancelled_at < '2026-07-01';
 
 | id | select_type | tablica | type | key | rows | Extra |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | SIMPLE | ticket | ALL | NULL | 188450 | Using where |
+| 1 | SIMPLE | ticket | ALL | NULL | 188468 | Using where |
 
 ANALYZE, krug 1, mjerenje 1:
 
@@ -485,7 +423,7 @@ ANALYZE, krug 1, mjerenje 1:
 | --- | --- | --- | --- | --- |
 | ticket | ALL | - | 1 | 189133 |
 
-15 vremena (ms), redom krugovi 1-3: 32.4, 31.8, 36.1, 28.4, 29.8, 29.9, 30.1, 38.7, 29.8, 39.7, 27.9, 32.8, 30.6, 31.0, 42.7.
+15 vremena (ms), redom krugovi 1-3: 46.9, 59.4, 75.6, 67.6, 60.7, 41.3, 58.2, 52.6, 60.9, 49.8, 62.2, 46.5, 54.7, 59.3, 50.8.
 
 **B: Konacni uski - EXPLAIN, krug 1**
 
@@ -499,7 +437,7 @@ ANALYZE, krug 1, mjerenje 1:
 | --- | --- | --- | --- | --- |
 | ticket | range | idx_ticket_cancelled_at | 1 | 206 |
 
-15 vremena (ms), redom krugovi 1-3: 0.633, 0.508, 0.565, 0.442, 0.402, 0.317, 0.301, 0.274, 0.261, 0.278, 0.408, 0.317, 0.292, 0.259, 0.325.
+15 vremena (ms), redom krugovi 1-3: 0.541, 0.654, 0.803, 1.2, 0.709, 0.787, 0.725, 0.902, 1.1, 1.1, 0.505, 0.525, 0.409, 0.376, 0.400.
 
 **C: Kupac + pokrivajuci povrati - EXPLAIN, krug 1**
 
@@ -513,7 +451,7 @@ ANALYZE, krug 1, mjerenje 1:
 | --- | --- | --- | --- | --- |
 | ticket | range | idx_ticket_refund_cover | 1 | 206 |
 
-15 vremena (ms), redom krugovi 1-3: 0.127, 0.072, 0.070, 0.065, 0.063, 0.063, 0.062, 0.120, 0.079, 0.076, 0.157, 0.118, 0.127, 0.064, 0.072.
+15 vremena (ms), redom krugovi 1-3: 0.098, 0.097, 0.097, 0.102, 0.106, 0.091, 0.092, 0.096, 0.096, 0.096, 0.099, 0.095, 0.094, 0.094, 0.117.
 
 **D: Siri indeks potvrda + C - EXPLAIN, krug 1**
 
@@ -527,7 +465,7 @@ ANALYZE, krug 1, mjerenje 1:
 | --- | --- | --- | --- | --- |
 | ticket | range | idx_ticket_refund_cover | 1 | 206 |
 
-15 vremena (ms), redom krugovi 1-3: 0.062, 0.064, 0.091, 0.089, 0.088, 0.090, 0.088, 0.089, 0.082, 0.092, 0.063, 0.064, 0.064, 0.062, 0.061.
+15 vremena (ms), redom krugovi 1-3: 0.105, 0.278, 0.173, 0.216, 0.101, 0.177, 0.175, 0.180, 0.172, 0.182, 0.180, 0.180, 0.257, 0.179, 0.181.
 
 ## Prostor i INSERT
 
@@ -535,173 +473,82 @@ Bajtovi iz information_schema.TABLES nakon ANALYZE. Prikaz svih krugova izbjegav
 
 | Krug | Konfiguracija | Tablica | DATA_LENGTH | INDEX_LENGTH | INDEX prema A |
 | --- | --- | --- | --- | --- | --- |
-| 1 | A | reservation | 6832128 | 11599872 | 0 |
-| 1 | A | ticket | 14172160 | 22118400 | 0 |
-| 1 | B | reservation | 6832128 | 14237696 | 2637824 |
-| 1 | B | ticket | 14172160 | 24756224 | 2637824 |
-| 1 | C | reservation | 6832128 | 16875520 | 5275648 |
-| 1 | C | ticket | 14172160 | 25804800 | 3686400 |
-| 1 | D | reservation | 6832128 | 17924096 | 6324224 |
-| 1 | D | ticket | 14172160 | 25804800 | 3686400 |
-| 2 | A | reservation | 6832128 | 11599872 | 0 |
-| 2 | A | ticket | 14172160 | 22118400 | 0 |
-| 2 | B | reservation | 6832128 | 14237696 | 2637824 |
-| 2 | B | ticket | 14172160 | 24756224 | 2637824 |
-| 2 | C | reservation | 6832128 | 16875520 | 5275648 |
-| 2 | C | ticket | 14172160 | 25804800 | 3686400 |
-| 2 | D | reservation | 6832128 | 17924096 | 6324224 |
-| 2 | D | ticket | 14172160 | 25804800 | 3686400 |
-| 3 | A | reservation | 6832128 | 11599872 | 0 |
-| 3 | A | ticket | 14172160 | 22118400 | 0 |
-| 3 | B | reservation | 6832128 | 14237696 | 2637824 |
-| 3 | B | ticket | 14172160 | 24756224 | 2637824 |
-| 3 | C | reservation | 6832128 | 16875520 | 5275648 |
-| 3 | C | ticket | 14172160 | 25804800 | 3686400 |
-| 3 | D | reservation | 6832128 | 17924096 | 6324224 |
-| 3 | D | ticket | 14172160 | 25804800 | 3686400 |
+| 1 | A | reservation | 12058624 | 11632640 | 0 |
+| 1 | A | ticket | 13123584 | 23183360 | 0 |
+| 1 | B | reservation | 12058624 | 13221888 | 1589248 |
+| 1 | B | ticket | 13123584 | 25821184 | 2637824 |
+| 1 | C | reservation | 12058624 | 15859712 | 4227072 |
+| 1 | C | ticket | 13123584 | 26869760 | 3686400 |
+| 1 | D | reservation | 12058624 | 16908288 | 5275648 |
+| 1 | D | ticket | 13123584 | 26869760 | 3686400 |
+| 2 | A | reservation | 12058624 | 11632640 | 0 |
+| 2 | A | ticket | 13123584 | 23183360 | 0 |
+| 2 | B | reservation | 12058624 | 13221888 | 1589248 |
+| 2 | B | ticket | 13123584 | 25821184 | 2637824 |
+| 2 | C | reservation | 12058624 | 15859712 | 4227072 |
+| 2 | C | ticket | 13123584 | 26869760 | 3686400 |
+| 2 | D | reservation | 12058624 | 16908288 | 5275648 |
+| 2 | D | ticket | 13123584 | 26869760 | 3686400 |
+| 3 | A | reservation | 12058624 | 11632640 | 0 |
+| 3 | A | ticket | 13123584 | 23183360 | 0 |
+| 3 | B | reservation | 12058624 | 13221888 | 1589248 |
+| 3 | B | ticket | 13123584 | 25821184 | 2637824 |
+| 3 | C | reservation | 12058624 | 15859712 | 4227072 |
+| 3 | C | ticket | 13123584 | 26869760 | 3686400 |
+| 3 | D | reservation | 12058624 | 16908288 | 5275648 |
+| 3 | D | ticket | 13123584 | 26869760 | 3686400 |
 
-INSERT 10.000 redaka u privremenu InnoDB kopiju reservation. Pocetni podaci su isti, svako mjerenje se ponisti; zagrijavanje, priprema kopije i ROLLBACK nisu u vremenu. Medijan/min-max svih 15 uzoraka po konfiguraciji.
+INSERT 10.000 redaka u privremenu InnoDB kopiju reservation. Pocetni podaci su isti, svako mjerenje se ponisti; zagrijavanje, priprema kopije i ROLLBACK nisu u vremenu. Medijan/min-max svih 15 uzoraka po konfiguraciji. Negativno trajanje odbacuje cijelu seriju prije generiranja dokumentacije; svi prikazani uzorci prosli su provjeru.
 
 | Konfiguracija | Medijan [min-max] ms | Promjena prema A |
 | --- | --- | --- |
-| A | 90.5 [74.6-109.1] | +0.00 % |
-| B | 97.3 [89.0-132.7] | +7.55 % |
-| C | 146.8 [111.5-174.3] | +62.26 % |
-| D | 161.1 [127.5-194.0] | +78.06 % |
+| A | 156.5 [112.6-194.9] | +0.00 % |
+| B | 158.0 [125.0-233.9] | +0.94 % |
+| C | 216.6 [165.4-246.2] | +38.40 % |
+| D | 203.7 [167.9-285.2] | +30.16 % |
 
-A, svih 15 INSERT vremena (ms): 91.8, 92.2, 83.6, 83.6, 82.6, 89.1, 74.6, 89.1, 96.6, 83.0, 101.6, 95.4, 109.1, 102.0, 90.5.
+A, svih 15 INSERT vremena (ms): 162.6, 182.0, 194.9, 183.1, 112.6, 173.5, 156.5, 135.9, 127.9, 157.9, 146.9, 143.0, 150.0, 140.6, 176.3.
 
-B, svih 15 INSERT vremena (ms): 115.0, 131.7, 132.7, 96.0, 96.1, 90.1, 100.6, 110.1, 108.2, 97.3, 89.0, 93.9, 106.9, 97.3, 95.3.
+B, svih 15 INSERT vremena (ms): 163.6, 170.2, 162.3, 177.6, 147.3, 145.7, 153.0, 152.9, 158.0, 202.4, 233.9, 149.3, 125.0, 162.6, 134.9.
 
-C, svih 15 INSERT vremena (ms): 114.4, 111.5, 163.8, 151.0, 145.5, 117.7, 156.3, 174.3, 156.8, 126.9, 172.9, 138.9, 146.8, 164.6, 120.3.
+C, svih 15 INSERT vremena (ms): 172.8, 246.2, 203.2, 243.2, 245.7, 165.4, 242.6, 209.9, 176.1, 207.9, 227.1, 186.6, 216.6, 218.3, 222.4.
 
-D, svih 15 INSERT vremena (ms): 129.9, 162.9, 174.9, 166.5, 136.8, 127.5, 168.9, 194.0, 151.3, 139.5, 161.1, 128.0, 172.1, 145.6, 165.4.
+D, svih 15 INSERT vremena (ms): 263.7, 230.7, 236.7, 285.2, 248.0, 169.8, 205.5, 224.1, 202.3, 183.2, 203.7, 167.9, 197.8, 199.1, 203.0.
 
 Ticket: 189133 karata, 3988 s povratom (2.1086 %), 185145 s NULL cancelled_at. Uski idx_ticket_cancelled_at povecava INDEX_LENGTH prema A za 2637824-2637824 bajtova (oko 2.6 MB). Indeks sadrzi i NULL vrijednosti svih neotkazanih karata.
 
-## Odluke o indeksima
+## Procjena indeksa
 
-**idx_res_confirmed_at(confirmed_at)** ostaje: Q3 s 116.8 ms u A pada
-na 0.077 ms u B. Datum omogucuje selektivni range, a implicitni InnoDB
-PK id pokriva JOIN na stavke. Siri datum nije potreban samo za taj upit.
+| Usporedba | Prije ms | Poslije ms | Tumacenje |
+| --- | --- | --- | --- |
+| A/B, Q3 | 206.3 | 0.144 | Uski confirmed_at izdvaja datumski raspon |
+| A/B, Q5 | 58.2 | 0.709 | Uski cancelled_at izdvaja povrate |
+| B/C, Q4 | 0.075 | 0.034 | Indeks kupca izbjegava sortiranje |
+| B/C, Q2 | 524.0 | 499.4 | Pokrivajuci povrati mijenjaju dio izvjestaja |
+| C/D, Q2 | 499.4 | 593.1 | Siri indeks potvrda |
+| B/C, INSERT | 158.0 | 216.6 | Samo trosak reservation indeksa |
 
-**idx_ticket_cancelled_at(cancelled_at)** ostaje: Q5 s 31.0 ms u A pada
-na 0.317 ms u B. Za rijetke povrate Q2 takodjer moze koristiti range.
-Iznos i item jos se dohvacaju iz tablice; prihvacamo tu cijenu uz manji indeks.
+Q4 razlika B/C je 40.6 mikrosekundi. INSERT C/B promjena je +37.1 %. To su izmjereni smjerovi promjene, bez tvrdnje da je svaka razlika statisticki znacajna.
 
-**fk_res_buyer(buyer_id)** vec postoji i dovoljan je za oko 20 rezervacija kupca.
-B zadrzava filesort malog skupa. Ostali FK/UNIQUE/operativni indeksi ostaju:
-idx_res_status_expires odgovara jednakosti statusa i rasponu isteka u proceduri,
-a idx_res_event_status podupire FK/event upite. Ovaj niz ne dokazuje njihovu
-beskorisnost i ne sluzi njihovu brisanju.
+Konacni izbor za ovaj testni workload ostaje B: uski confirmed_at i cancelled_at uz postojece FK/UNIQUE/operativne indekse. C/D ostaju kandidati za opterecenje s vise citanja. Prednost u izvjestaju ne odbacujemo ako postoji: tablice iznad pokazuju stvaran dobitak i trosak. Bez omjera citanja/pisanja i ciljne latencije ne tvrdimo da je B univerzalno optimalan.
 
-## Odbaceni kandidati
+idx_res_status_expires(status,expires_at) odgovara jednakosti statusa i rasponu isteka; uq_ticket_code sluzi pojedinacnom check-in lookupu. Kompozitni UNIQUE indeksi sluze i FK konzistentnosti pa se ne brisu samo zbog preklapanja s PK. Indeks event_date opisuje lokalni kalendar, ne globalno UTC sortiranje vise zona.
 
-C naspram B: Q4 medijan je 0.052 -> 0.026 ms,
-razlika 26.6 mikrosekundi u korist C (negativno znaci sporije).
-idx_res_buyer_created(buyer_id,created_at,id) uklanja filesort i rano staje,
-ali apsolutna usteda ostaje mala za 22 rezervacije kupca. Ne zadrzavamo ga.
+## Ogranicenja mjerenja
 
-idx_ticket_refund_cover(cancelled_at,reservation_item_id,refund_amount) u C
-pokriva SUM/JOIN: Q5 je 0.317 -> 0.072 ms,
-Q2 322.0 -> 293.4 ms. To su stvarni dobitci/gubitci novog
-niza, a ne povijesne brojke. Promjena medijana Q2 je -8.87 %; ne odbacujemo
-stvaran dobitak citanja kao da ga nema. Dobitak citanja usporedjuje cijele konfiguracije B/C.
-Za INSERT je atribucija drukcija: test unosi samo u privremenu kopiju reservation,
-a B i C na toj tablici razlikuju se samo po idx_res_buyer_created.
-C prema B povecava medijan INSERT-a s 97.3 na 146.8 ms
-(+50.9 %): to je izmjerena cijena dodatnog
-idx_res_buyer_created u ovom testu, uz prikazani raspon i moguci sum.
-Cijena pisanja idx_ticket_refund_cover NIJE izmjerena jer test ne upisuje u ticket.
-Taj indeks odbacujemo zbog dodatnog prostora i jednostavnosti, a ne na temelju
-ovog INSERT usporenja. Razlika INDEX_LENGTH u svakom krugu je
-2637824 bajtova na reservation i
-1048576 na ticket.
-Za ovaj studentski workload biramo manje indekse i jeftiniji unos, uz prihvaceno
-sporije izvjestavanje nego u C. Bez definiranog produkcijskog omjera citanja i
-pisanja ne tvrdimo da je B optimalan za svaki moguci workload.
+INSERT koristi CREATE TEMPORARY TABLE LIKE reservation: kopira stupce, CHECK/UNIQUE i indekse, ali ne FK ni triggere. Ne mjeri poslovne procedure, trajni COMMIT ni pisanje ticket tablice. Zato ovim testom nije izmjerena cijena pisanja pokrivajuceg ticket indeksa. INDEX_LENGTH su procjene alociranih stranica, ne precizne logicke velicine; NULL vrijednosti takodjer ulaze u InnoDB indekse. Mjesecno grupiranje ima CONVERT_TZ/UNIX_TIMESTAMP obradu pa se stari DATETIME rezultati ne prenose.
 
-D naspram C izolira zamjenu uskog datuma potvrde s
-idx_res_confirmed_cover(confirmed_at,event_id,refund_protection_fee).
-Q2: 293.4 -> 365.1 ms; Q3:
-0.072 -> 0.086 ms. Pokrivenost ne uklanja agregacije
-velikog skupa. Rasponi svih konfiguracija prikazani su gore; ne tvrdimo da je
-svaka razlika medijana statisticki znacajna.
+Izvori: [MariaDB ANALYZE FORMAT=JSON](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/analyze-and-explain-statements/analyze-format-json), [CREATE TABLE LIKE](https://mariadb.com/docs/server/server-usage/tables/create-table), [izbor indeksa](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/optimization-and-indexes/building-the-best-index-for-a-given-select).
 
-## Zasto ne indeksirati svaki stupac
+## Reprodukcija
 
-**Pisanje.** B prema A: INSERT medijan 90.5 -> 97.3 ms,
-+7.55 %. C prema A: 90.5 -> 146.8 ms,
-+62.26 %. Usporedbe su iz istog niza i istog testa.
-Svaki dodatni B-tree trazi rad pri INSERT-u i promjeni indeksiranih vrijednosti.
-Razlike vremena mogu biti pod utjecajem prikazanog suma i redoslijeda.
+```bash
+bash perf/00_create_perf_db.sh
+docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot' < perf/01_generate_100k.sql
+# Arhiviraj stari series.tsv i series_manifest.json izvan perf/results.
+python3 perf/run_series.py
+python3 perf/summarize.py --document > docs/07_performanse.md
+```
 
-**Prostor i NULL.** Uski idx_ticket_cancelled_at zauzima oko 2,6 MB, iako samo
-oko 2 % karata ima povrat: InnoDB indeks sadrzi i NULL cancelled_at vrijednosti
-za sve preostale karte. Tocan broj/pct i izmjerena INDEX razlika prikazani su gore.
-Niska ucestalost povrata ne znaci da je indeks djelomican ili da sadrzi samo povrate.
-Dodatni indeksi povecavaju buffer pool/I/O, backup, izgradnju i odrzavanje statistika.
-
-**Zasto su DATA/INDEX velicine drukcije nego u obrisanim starim mjerenjima?** Tablice su prije ovog niza
-obnovljene iz logickog dumpa tijekom prethodne obnove baze. Dump prenosi retke i
-DDL, ne stari fizicki raspored stranica. Restore ponovno gradi klasterirane i
-sekundarne indekse, mijenja popunjenost i slobodne stranice; kasniji DROP/CREATE
-indeksa takodjer utjece na alokaciju. Zato jednaki logicki podaci ne jamce jednak
-DATA_LENGTH/INDEX_LENGTH. To nije dokaz nestanka redaka niti se stari i novi
-apsolutni brojevi prostora koriste kao usporedba kandidata. Usporedba je sada
-medju A-D unutar istog kruga, a u tablici su sve tri vrijednosti.
-
-**Q4 i preklapanje.** Uklanjanje filesort nije samo po sebi dovoljan razlog za
-indeks: sortiranje 22 redaka je jeftino. Kandidat ponavlja buyer_id prefiks vec
-postojeceg FK indeksa. Uski i pokrivajuci datum povrata takodjer dijele prefiks;
-ne zadrzavamo oba. Pojedinacni indeksi na svakom stupcu ne zamjenjuju smislen
-redoslijed slozenog indeksa, ali ni svaki slozeni indeks nije isplativ.
-
-**Optimizator i selektivnost.** Vise mogucih pristupnih puteva ne jamci bolji plan.
-Status ima malo vrijednosti, dok datum moze izdvojiti mali raspon. Q1 mora brojiti
-cijeli skup bez obzira na indeks; Q2 mora agregirati mnogo rezervacija. Temporary
-i filesort u takvom izvjestaju nisu sami po sebi pogreska.
-
-**Kompozitni FK.** uq_reservation_id_event, uq_category_id_event,
-uq_item_id_category, uq_seat_id_category i uq_rs_id_item vec trose prostor i rad
-provjere jedinstvenosti, ali jamce konzistentnu pripadnost eventu/kategoriji/stavci.
-Ostaju u A-D i kopiraju se u INSERT mikrobenchmark; ne uklanjaju se zbog
-preklapanja s PK.
-
-## Kompromisi i zakljucak
-
-Izbor indeksa nije promijenjen: uski indeksi su dovoljni za demonstrirane
-selektivne upite, a C/D ostaju odbaceni kandidati. To je odluka o apsolutnoj koristi,
-prostoru i pisanju, a ne tvrdnja da su B vremena najbolja za svaki upit.
-C ima bolji Q2 medijan i znatno bolji Q5 od B; D ima losiji Q2 medijan od C.
-Novi niz zato ne podrzava staru tvrdnju da C nema mjerljiv dobitak u citanju:
-podrzava odbacivanje indeksa kupca prema kompromisu s INSERT-om i prostorom,
-a indeksa povrata zbog prostora i jednostavnosti; njegova cijena pisanja nije izmjerena.
-Q1 i B-Q4 imaju iste pristupne puteve kao A; razlike vremena nisu dokaz poboljsanja.
-Q2 ostaje skup i ne postaje selektivan samo dodavanjem indeksa. Q5 prihvaca dodatni
-dohvat iz tablice u zamjenu za uzi indeks.
-
-INSERT je mikrobenchmark reservation indeksa: CREATE TEMPORARY TABLE LIKE kopira
-stupce, CHECK/UNIQUE i indekse, ali ne FK/triggere. Nema poslovnih procedura,
-trajnog COMMIT-a, ni upisa u ticket. Priprema i rollback nisu u vremenu.
-Zato cijena pisanja ticket indeksa i puna poslovna transakcija nisu izmjerene.
-[MariaDB: CREATE TABLE LIKE](https://mariadb.com/docs/server/server-usage/tables/create-table).
-
-## Zavrsno stanje i samoprovjera
-
-Nakon niza stvarno je izvrsen 02 -> 03. FINAL_INDEX/FINAL_COUNTS u series.tsv
-potvrdjuju dva uska indeksa, odsutnost tri kandidata, 100.175 rezervacija,
-189.133 karte i 0 odstupanja brojacima. Mala baza eventhub nije mijenjana.
-Regresije prethodne revizije 81/81 i 18/18 sacuvane su u
-`perf/results/checks/invalid_data.tsv` i `verify_reports.tsv`. To su provjere
-ispravnosti, a ne stara mjerenja performansi; nisu predstavljene kao nova izvrsavanja.
-
-| Acceptance kriterij | Gdje |
-| --- | --- |
-| Najmanje 100.000 rezervacija | Skup podataka; ENV i FINAL_COUNTS u series.tsv; perf/01_generate_100k.sql |
-| Spori izvjestaji i EXPLAIN za najmanje dva upita | SQL, EXPLAIN i stvarni redci: svih pet upita, sve cetiri konfiguracije |
-| Opravdane odluke o indeksima | Odluke o indeksima i Odbaceni kandidati; konfiguracije B/C/D |
-| Mjerenja prije i poslije | Izmjerena vremena: medijan/min-max 15 uzoraka; sirovi series.tsv |
-| Trade-off dodatnih indeksa | Prostor i INSERT; Zasto ne indeksirati svaki stupac; Kompromisi |
-| Ponovljivost | perf/run_series.py, series_manifest.json; tri A-D kruga i zavrsni povrat |
+Glavna baza treba imati cisti seed od 175 rezervacija; performance kopija se zamjenjuje. Funkcionalni dokazi nove sheme su u tests/results/manifest.json, a nezavisne seed provjere u perf/results/checks. FINAL_COUNTS potvrduje 0 neuskladjenih brojaca.
 

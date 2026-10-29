@@ -1,0 +1,9 @@
+--------------
+CALL create_reservation(@buyer, @event, CONCAT('[{"category_id":', @cat, ',"quantity":3}]'), 0, @rejected)
+--------------
+
+ERROR 1644 (45000) at line 33: Nema dovoljno slobodnih mjesta
+209	confirmed
+10	4
+4
+17	21	10	8

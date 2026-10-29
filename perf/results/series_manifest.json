@@ -1,5 +1,5 @@
 {
-  "started_utc": "2026-10-28T12:11:36.938283+00:00",
+  "started_utc": "2026-10-29T15:20:32.470602+00:00",
   "rounds": 3,
   "order": [
     "A",
@@ -9,12 +9,32 @@
   ],
   "source_sha256": {
     "02_baseline.sql": "b5705de2208057452a5dc2a26b1f1a3731824955be505ca0b59831ff1b77be6b",
-    "03_add_indexes.sql": "d3129e107ece444e88923e0c7765200a7a8ac741b6419f8fe816b0174e8055b1",
+    "03_add_indexes.sql": "bb7aaa5451910b195c3c6703935c0255f7a61c725394a22988500ed2f6661f80",
     "04_after.sql": "928472d594046b7658f6d7c62fb0a9cff01fb5dd11e53840d6df142cb75d02bb",
     "07_rejected_indexes.sql": "eb9754bbececf4c4f827606a5d0e05941b25cc60c5d47983e9fb19a9a640fea4",
     "06_rejected_cover.sql": "30ba2963049b5a3bbe336ef237f202dd4a1c919f398ff43539517d0e53d30d29"
   },
-  "finished_utc": "2026-10-28T12:13:01.115828+00:00",
+  "database": {
+    "version": "10.11.19-MariaDB-ubu2204",
+    "session_time_zone": "+00:00",
+    "reservations": 100175,
+    "tickets": 189133,
+    "system_timestamp_columns": 12,
+    "ticket_code_collation": "ascii_bin",
+    "revenue_view_sha256": "cf7285f1c8091c7fd18df5e6f960ab29c717b7ed9b2b70430ada2d1b3e1ef059"
+  },
+  "schema_sha256": {
+    "migrations/001-tables.sql": "96cbf2b5956457758b67acdb365027fedc5368f5bd5cebfb945a8febc1e20d31",
+    "migrations/002-functions-triggers.sql": "6e5903f35fc8fe5511ef658b7096ff9f35cd892e897bcbada7c9ffcb55a34790",
+    "migrations/003-procedures-event.sql": "f55c1421c60e36aed2ac4754236b3f6772b42f688a89ad0412fe7aa4775e1191",
+    "migrations/004-views.sql": "3238085961c7066322afc1403049fa2e0013923624b625a70b10c33240ef65cc",
+    "migrations/005-grants.sql": "ddefabb7d4656992058db2f7c213d24486cb1f58501179057ea5bc36c4c81ba8",
+    "migrations/005-users.sql": "600e112244325c1f0115c89d783c120c1ea98ca509766a9b2445744a75a799eb",
+    "migrations/db.changelog-master.xml": "2cdc004a1de4acc1a83ba4d63876d9596b63d6b88ce11f30de51de1e93047465"
+  },
+  "generator_sha256": "e224626f18cce734abd91e0b71070817214f2559fcf68fff6d270af85a14ea96",
+  "finished_utc": "2026-10-29T15:22:43.337401+00:00",
   "exit_code": 0,
-  "result_sha256": "30ac00382afb706b9901709d507418fee05103be6e8a4066fa4c3f40304bff82"
+  "timings_valid": true,
+  "result_sha256": "86e76ba1561a45e5f6bd5e8f15e8a0b849ae501a98fcd6b3b7cde0247f550be9"
 }

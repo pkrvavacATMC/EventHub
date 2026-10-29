@@ -1,5 +1,7 @@
 # Task 3 – Testovi neispravnih podataka i očekivano ponašanje
 
+Provjereno **2026-10-29T15:09:40.017760+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
+
 Skripta: `tests/01_invalid_data.sql` (pokreće se nakon Liquibase migracija i `seed/01_seed.sql`).
 
 Svaki test pokušava neispravnu operaciju i provjerava da ju je baza **odbila** s očekivanim kodom greške i porukom. Direktni `INSERT`/`UPDATE`/`DELETE` izvršavaju se u transakciji koja se uvijek poništava, a pozivi procedura moraju pasti, pa testovi ne mijenjaju podatke. Na kraju skripta provjerava da su brojači zauzeća i dalje usklađeni (`v_reserved_check` = 0 redaka).
@@ -162,3 +164,5 @@ Ove zaštite ne pretvaraju svaki administratorski UPDATE u poslovnu operaciju:
 pending stajaća rezervacija nema hold sjedala, pa je za ispravno smanjenje
 `reserved` i dalje potrebno koristiti procedure. Aplikacijski korisnik nema
 ovlasti za direktan UPDATE tablica.
+
+Nove auth/type/zone, UTC/DST, ovlasti i backup provjere opisane su u [zavrsnoj provjeri](10_schema_validation.md).

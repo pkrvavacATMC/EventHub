@@ -18,30 +18,25 @@ set -euo pipefail
 
 CONTAINER="${CONTAINER:-eventhub-db}"
 
-docker exec -i "$CONTAINER" sh -c '
-  set -e
-  export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"     # lozinka ne ide u naredbeni redak
-
-  SEED=$(mariadb -uroot -N -e "SELECT COUNT(*) FROM eventhub.reservation")
-  if [ "$SEED" -eq 0 ]; then
-    echo "Baza eventhub nema rezervacija - prvo pokreni seed/01_seed.sql" >&2
-    exit 1
-  fi
-
-  echo "1/3 Nova prazna baza eventhub_perf..."
-  mariadb -uroot -e "DROP DATABASE IF EXISTS eventhub_perf;
-                     CREATE DATABASE eventhub_perf CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-  echo "2/3 Kopija eventhub -> eventhub_perf (dump + restore)..."
-  mariadb-dump -uroot --single-transaction --routines --triggers --events eventhub \
-    | mariadb -uroot eventhub_perf
-
-  echo "3/3 Iskljucivanje schedulera u kopiji..."
-  mariadb -uroot eventhub_perf -e "ALTER EVENT ev_expire_reservations DISABLE;"
-
-  mariadb -uroot -t -e "
-    SELECT \"eventhub\"      AS baza, COUNT(*) AS rezervacije FROM eventhub.reservation
-    UNION ALL
-    SELECT \"eventhub_perf\",          COUNT(*)                FROM eventhub_perf.reservation;"
-  echo "Gotovo. Sljedeci korak: perf/01_generate_100k.sql"
-'
+docker exec -i "$CONTAINER" sh <<'SCRIPT'
+set -e
+export MYSQL_PWD="$MARIADB_ROOT_PASSWORD"
+seed_count=$(mariadb -uroot -N -e "SELECT COUNT(*) FROM eventhub.reservation")
+if [ "$seed_count" -ne 175 ]; then
+  echo "Za usporediva mjerenja eventhub mora imati cisti seed (175 rezervacija)." >&2
+  exit 1
+fi
+perf_dump=$(mktemp)
+perf_disabled="$perf_dump.disabled"
+trap 'rm -f "$perf_dump" "$perf_disabled"' EXIT
+mariadb-dump -uroot --single-transaction --routines --triggers --events eventhub > "$perf_dump"
+sed '/EVENT `ev_expire_reservations` ON SCHEDULE/s/ ENABLE DO / DISABLE DO /' "$perf_dump" > "$perf_disabled"
+echo "1/3 Nova prazna baza eventhub_perf..."
+mariadb -uroot -e "DROP DATABASE IF EXISTS eventhub_perf; CREATE DATABASE eventhub_perf CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+echo "2/3 Kopija nove sheme i podataka..."
+mariadb -uroot eventhub_perf < "$perf_disabled"
+echo "3/3 Provjera da je kopirani scheduler iskljucen..."
+status=$(mariadb -uroot -N -e "SELECT STATUS FROM information_schema.EVENTS WHERE EVENT_SCHEMA='eventhub_perf' AND EVENT_NAME='ev_expire_reservations'")
+[ "$status" = DISABLED ]
+mariadb -uroot -t -e "SELECT 'eventhub' AS baza, COUNT(*) AS rezervacije FROM eventhub.reservation UNION ALL SELECT 'eventhub_perf', COUNT(*) FROM eventhub_perf.reservation;"
+SCRIPT

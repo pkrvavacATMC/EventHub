@@ -8,3 +8,6 @@ perf/results/series.stderr
 # Lokalni Python bytecode.
 __pycache__/
 *.pyc
+
+# Lokalno Python okruzenje za testove.
+.venv/

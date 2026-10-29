@@ -1,4 +1,3 @@
-opis	rezultat
 Seed: 8 evenata, 40 kupaca, 175 rezervacija, 290 karata	PASS
 Q1: potvrdene karte = 267 i neovisni broj vazecih karata	PASS
 Q1/Q4/Q6: svi eventi su ukljuceni	PASS
@@ -17,5 +16,4 @@ Q8: sijecanj 2026: 567 + 14 - 25 = 556 EUR	PASS
 Q6: Zimska jazz vecer: 15 / (50 - 7) = 34.9 %	PASS
 Regresija Q1: direktno otkazivanje s vazecim kartama je odbijeno	PASS
 Q1: svaki event odgovara kartama confirmed rezervacija	PASS
-pass	fail
 18	0

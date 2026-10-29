@@ -1,0 +1,79 @@
+--------------
+UPDATE buyer SET password_hash='bad' WHERE id=1
+--------------
+
+ERROR 4025 (23000) at line 2: CONSTRAINT `chk_buyer_password_hash` failed for `eventhub`.`buyer`
+--------------
+UPDATE buyer SET password_hash='$2b$12$short' WHERE id=1
+--------------
+
+ERROR 4025 (23000) at line 2: CONSTRAINT `chk_buyer_password_hash` failed for `eventhub`.`buyer`
+--------------
+UPDATE buyer SET password_hash='$argon2id$bad' WHERE id=1
+--------------
+
+ERROR 4025 (23000) at line 2: CONSTRAINT `chk_buyer_password_hash` failed for `eventhub`.`buyer`
+--------------
+UPDATE buyer SET failed_login_attempts=-1 WHERE id=1
+--------------
+
+ERROR 4025 (23000) at line 2: CONSTRAINT `chk_buyer_failed_login_attempts` failed for `eventhub`.`buyer`
+--------------
+UPDATE event SET event_type_id=2147483647 WHERE id=1
+--------------
+
+ERROR 1452 (23000) at line 2: Cannot add or update a child row: a foreign key constraint fails (`eventhub`.`event`, CONSTRAINT `fk_event_type` FOREIGN KEY (`event_type_id`) REFERENCES `event_type` (`id`))
+--------------
+INSERT INTO event_type(code,name) VALUES ('INVALID','Invalid')
+--------------
+
+ERROR 4025 (23000) at line 2: CONSTRAINT `chk_event_type_code` failed for `eventhub`.`event_type`
+--------------
+INSERT INTO event_type(code,name) VALUES ('bad-code','Invalid')
+--------------
+
+ERROR 4025 (23000) at line 2: CONSTRAINT `chk_event_type_code` failed for `eventhub`.`event_type`
+--------------
+INSERT INTO event_type(code,name) VALUES ('concert','Duplicated')
+--------------
+
+ERROR 1062 (23000) at line 2: Duplicate entry 'concert' for key 'uq_event_type_code'
+--------------
+INSERT INTO event_type(code,name) VALUES ('new_type','Koncert')
+--------------
+
+ERROR 1062 (23000) at line 2: Duplicate entry 'Koncert' for key 'uq_event_type_name'
+--------------
+INSERT INTO event_type(code,name) VALUES ('new_type','   ')
+--------------
+
+ERROR 4025 (23000) at line 2: CONSTRAINT `chk_event_type_name` failed for `eventhub`.`event_type`
+--------------
+INSERT INTO city(name,time_zone) VALUES ('Invalid','Invalid/Zone')
+--------------
+
+ERROR 1644 (45000) at line 2: Nepoznata vremenska zona
+--------------
+UPDATE city SET time_zone='Invalid/Zone' WHERE name='Zagreb'
+--------------
+
+ERROR 1644 (45000) at line 2: Nepoznata vremenska zona
+--------------
+UPDATE city SET time_zone='Europe/London' WHERE name='Zagreb'
+--------------
+
+ERROR 1644 (45000) at line 2: Zona grada s postojecim eventima se ne moze mijenjati
+ERROR 1644 (45000) at line 2: Nepoznata vremenska zona
+--------------
+UPDATE buyer SET password_hash='$2b$12$quPE9J6xONK/KHjwVT41rO7X7iYSP6Y/oNYyZL0Fv77AfdQ7IJz3a
+' WHERE id=1
+--------------
+
+ERROR 4025 (23000) at line 2: CONSTRAINT `chk_buyer_password_hash` failed for `eventhub`.`buyer`
+--------------
+INSERT INTO event_type(code,name) VALUES ('newline
+','Invalid')
+--------------
+
+ERROR 4025 (23000) at line 2: CONSTRAINT `chk_event_type_code` failed for `eventhub`.`event_type`
+PASS: 16 odbijenih nevaljanih unosa, bcrypt/argon2id u oba SQL nacina, defaults i collation.

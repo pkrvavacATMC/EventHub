@@ -1,0 +1,3 @@
+1	SIMPLE	t	const	uq_ticket_code,fk_ticket_item	uq_ticket_code	32	const	1	
+1	SIMPLE	ri	const	PRIMARY,uq_item_id_category	PRIMARY	4	const	1	
+1	SIMPLE	e	const	PRIMARY	PRIMARY	4	const	1

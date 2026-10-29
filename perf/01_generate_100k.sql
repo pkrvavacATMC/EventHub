@@ -27,6 +27,7 @@
 --  * prosli eventi: ~85 % vazecih karata ima check-in
 -- =====================================================================
 USE eventhub_perf;
+SET time_zone = '+00:00';
 
 -- Zastita: ne pokreci dvaput (i nista ne mijenjaj prije ove provjere)
 DELIMITER //
@@ -62,10 +63,10 @@ SELECT 'Kupac', CONCAT('Perf', seq), CONCAT('perf.kupac', seq, '@example.com'), 
 SET @buyer0 = LAST_INSERT_ID() - 1;        -- kupac n = @buyer0 + n
 
 -- 50 evenata, svakih 13 dana od 1.3.2025. (zadnji u prosincu 2026.)
-INSERT INTO event (name, event_date, capacity, location_id, organizer_id)
+INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id)
 SELECT CONCAT('PERF Event ', LPAD(seq, 2, '0')),
        TIMESTAMP('2025-03-01 20:00:00') + INTERVAL (seq - 1) * 13 DAY,
-       6000, @loc, @org0 + 1 + (seq % 5)
+       6000, @loc, @org0 + 1 + (seq % 5), (SELECT id FROM event_type WHERE code = 'other')
   FROM seq_1_to_50;
 SET @ev0 = LAST_INSERT_ID() - 1;           -- event n = @ev0 + n
 
@@ -100,14 +101,16 @@ SELECT s.seq,
 
 UPDATE tmp_perf t
   JOIN event e ON e.id = t.event_id
+  JOIN location l ON l.id = e.location_id
+  JOIN city ct ON ct.id = l.city_id
   JOIN ticket_category c ON c.event_id = t.event_id
                         AND c.name = IF(t.category_id = 4, 'Balkon', 'Parter')
-   SET t.event_date  = e.event_date,
+   SET t.event_date  = local_to_utc(e.event_date, ct.time_zone),
        t.category_id = c.id,
        t.price       = c.price,
        t.fee         = c.service_fee,
        -- kupnja 3-90 dana prije eventa, ali nikad nakon 27.10.2026.
-       t.created_at  = LEAST(e.event_date - INTERVAL (3 + CRC32(CONCAT('d', t.seq)) % 88) DAY
+       t.created_at  = LEAST(local_to_utc(e.event_date, ct.time_zone) - INTERVAL (3 + CRC32(CONCAT('d', t.seq)) % 88) DAY
                                           - INTERVAL (CRC32(CONCAT('m', t.seq)) % 600) MINUTE,
                              TIMESTAMP('2026-10-27 12:00:00') - INTERVAL (CRC32(CONCAT('m', t.seq)) % 600) MINUTE);
 

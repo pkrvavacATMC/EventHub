@@ -1,6 +1,6 @@
 # Presentation walkthrough
 
-Run commands from the repository root after following the [README](../README.md). Read the [database guide](02_database_structure.md) first. Historical outputs are evidence of earlier runs, not a substitute for explaining live behavior.
+Run commands from the repository root after following the [README](../README.md). Read the [database guide](02_database_structure.md) first. Recorded outputs were regenerated for the current schema; see the [validation manifest](../tests/results/manifest.json).
 
 ## 1. Prepare reports and performance data
 
@@ -46,17 +46,17 @@ Recorded evidence: [transactions](05_transactions_output.md), [concurrency](06_c
 
 ## 5. Optimization
 
-Review [complete measurements](07_performanse.md) alongside `perf/results/series.tsv`. Recorded A/B medians include Q2 804.00 → 321.98 ms and Q3 116.81 → approximately 0.08 ms. These are historical warm-workload measurements, not guaranteed timings on another machine.
-
-To reproduce, move the existing `perf/results/series.tsv` and `series_manifest.json` to a separate archive directory first; the runner refuses to overwrite the series. Then run:
+Use the [latest measured plans and results](07_performanse.md). The performance database must be rebuilt after schema changes; the manifest fingerprints the current schema, generator and SQL. Archive the previous series outside perf/results before repeating measurements. Do not quote timings from earlier database versions.
 
 ```bash
 python3 perf/run_series.py
-python3 perf/summarize.py --document
+python3 perf/summarize.py --document > docs/07_performanse.md
 ```
 
-The second command prints the report; redirect only if intentionally replacing the historical document. The runner compares four configurations over three rounds and restores the final narrow indexes. Explain estimated EXPLAIN rows versus actual ANALYZE timing, warm caches, index selectivity and INSERT cost. Explain why the buyer index and covering refund index were rejected rather than claiming every added index is beneficial.
+The four configurations run over three rounds in one session, then restore the narrow indexes. Explain actual reads, index selection, space, write cost and measurement limits. Wider indexes may improve reads; the final choice is a workload trade-off.
 
 ## Final rehearsal
 
 Explain every observed change independently: which row is locked, what rolls back, when tickets are issued, and how the consistency view detects drift. Distinguish seed-only expected totals from demo-enriched data. Stop and inspect unexpected results rather than treating an old PASS table as a live test.
+
+The actual rejected presentation call and its preceding successful purchases are recorded in [presentation.txt](../tests/results/presentation.txt).

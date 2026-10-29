@@ -30,21 +30,19 @@
 -- =====================================================================
 
 
--- Pocetna struktura. Postojece tablice prethodno provjerava 000-adoption-guard.sql.
+-- Konacna shema za praznu testnu bazu. Postojece okruzenje resetirati prije updatea.
 
 --changeset eventhub:001-table-city dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='city';
 CREATE TABLE city (
   id   INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
+  time_zone VARCHAR(64) NOT NULL DEFAULT 'Europe/Zagreb',
   CONSTRAINT uq_city_name UNIQUE (name),
   CONSTRAINT chk_city_name CHECK (TRIM(name) <> '')
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE city;
 
 --changeset eventhub:001-table-organizer dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='organizer';
 CREATE TABLE organizer (
   id    INT AUTO_INCREMENT PRIMARY KEY,
   name  VARCHAR(150) NOT NULL,
@@ -52,11 +50,10 @@ CREATE TABLE organizer (
   CONSTRAINT uq_organizer_email UNIQUE (email),
   CONSTRAINT chk_organizer_name  CHECK (TRIM(name) <> ''),
   CONSTRAINT chk_organizer_email CHECK (email LIKE '%_@_%._%' AND email NOT LIKE '% %')
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE organizer;
 
 --changeset eventhub:001-table-location dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='location';
 CREATE TABLE location (
   id       INT AUTO_INCREMENT PRIMARY KEY,
   name     VARCHAR(150) NOT NULL,
@@ -65,11 +62,10 @@ CREATE TABLE location (
   CONSTRAINT chk_location_name     CHECK (TRIM(name) <> ''),
   CONSTRAINT chk_location_capacity CHECK (capacity > 0),
   CONSTRAINT fk_location_city FOREIGN KEY (city_id) REFERENCES city (id) ON DELETE RESTRICT
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE location;
 
 --changeset eventhub:001-table-buyer dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='buyer';
 CREATE TABLE buyer (
   id      INT AUTO_INCREMENT PRIMARY KEY,
   name    VARCHAR(100) NOT NULL,
@@ -77,32 +73,64 @@ CREATE TABLE buyer (
   email   VARCHAR(190) NOT NULL,
   address VARCHAR(200) NULL,
   city_id INT NOT NULL,
+  password_hash VARCHAR(255) NULL,
+  email_verified_at TIMESTAMP NULL DEFAULT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  failed_login_attempts INT NOT NULL DEFAULT 0,
+  locked_until TIMESTAMP NULL DEFAULT NULL,
+  last_login_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT uq_buyer_email UNIQUE (email),
   CONSTRAINT chk_buyer_name    CHECK (TRIM(name) <> '' AND TRIM(surname) <> ''),
   CONSTRAINT chk_buyer_email   CHECK (email LIKE '%_@_%._%' AND email NOT LIKE '% %'),
+  CONSTRAINT chk_buyer_password_hash CHECK (
+ password_hash IS NULL OR (password_hash NOT REGEXP '[[:space:]]' AND password_hash REGEXP BINARY
+ '^([$]2[aby][$](0[4-9]|[12][0-9]|3[01])[$][./A-Za-z0-9]{53}|[$]argon2id[$]v=19[$]m=[1-9][0-9]*,t=[1-9][0-9]*,p=[1-9][0-9]*[$][A-Za-z0-9+/]+[$][A-Za-z0-9+/]+)$')),
+  CONSTRAINT chk_buyer_failed_login_attempts CHECK (failed_login_attempts >= 0),
   CONSTRAINT fk_buyer_city FOREIGN KEY (city_id) REFERENCES city (id) ON DELETE RESTRICT
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE buyer;
+
+--changeset eventhub:001-table-event_type dbms:mariadb
+CREATE TABLE event_type (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(30) NOT NULL,
+  name VARCHAR(100) NOT NULL,
+  CONSTRAINT uq_event_type_code UNIQUE (code),
+  CONSTRAINT uq_event_type_name UNIQUE (name),
+  CONSTRAINT chk_event_type_code CHECK (code REGEXP BINARY '^[a-z][a-z0-9_]*$' AND code NOT REGEXP '[[:space:]]'),
+  CONSTRAINT chk_event_type_name CHECK (TRIM(name) <> '')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE event_type;
+
+--changeset eventhub:001-seed-event_type dbms:mariadb
+INSERT IGNORE INTO event_type (code, name) VALUES
+ ('concert', 'Koncert'), ('standup', 'Stand-up'), ('theatre', 'Kazaliste'),
+ ('festival', 'Festival'), ('sport', 'Sport'), ('conference', 'Konferencija'),
+ ('exhibition', 'Izlozba'), ('kids', 'Djecji program'), ('other', 'Ostalo');
+--rollback DELETE FROM event_type;
 
 --changeset eventhub:001-table-event dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='event';
 CREATE TABLE event (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   name         VARCHAR(200) NOT NULL,
-  event_date   DATETIME NOT NULL,
+  event_date   DATETIME NOT NULL, -- Lokalno vrijeme u city.time_zone, namjerno DATETIME.
   capacity     INT NOT NULL,
   location_id  INT NOT NULL,
   organizer_id INT NOT NULL,
+  event_type_id INT NOT NULL,
   CONSTRAINT chk_event_name     CHECK (TRIM(name) <> ''),
   CONSTRAINT chk_event_capacity CHECK (capacity > 0),
   CONSTRAINT fk_event_location  FOREIGN KEY (location_id)  REFERENCES location (id)  ON DELETE RESTRICT,
   CONSTRAINT fk_event_organizer FOREIGN KEY (organizer_id) REFERENCES organizer (id) ON DELETE RESTRICT,
+  CONSTRAINT fk_event_type FOREIGN KEY (event_type_id) REFERENCES event_type (id) ON DELETE RESTRICT,
+  INDEX idx_event_type (event_type_id),
   INDEX idx_event_date (event_date)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE event;
 
 --changeset eventhub:001-table-ticket_category dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket_category';
 CREATE TABLE ticket_category (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   event_id     INT NOT NULL,
@@ -120,11 +148,10 @@ CREATE TABLE ticket_category (
   CONSTRAINT chk_category_capacity CHECK (capacity > 0),
   CONSTRAINT chk_category_reserved CHECK (reserved BETWEEN 0 AND capacity),
   CONSTRAINT fk_category_event FOREIGN KEY (event_id) REFERENCES event (id) ON DELETE RESTRICT
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE ticket_category;
 
 --changeset eventhub:001-table-seat dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='seat';
 CREATE TABLE seat (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   category_id INT NOT NULL,
@@ -135,21 +162,20 @@ CREATE TABLE seat (
   CONSTRAINT chk_seat_row    CHECK (TRIM(row_label) <> ''),
   CONSTRAINT chk_seat_number CHECK (seat_number > 0),
   CONSTRAINT fk_seat_category FOREIGN KEY (category_id) REFERENCES ticket_category (id) ON DELETE RESTRICT
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE seat;
 
 --changeset eventhub:001-table-reservation dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservation';
 CREATE TABLE reservation (
   id                    INT AUTO_INCREMENT PRIMARY KEY,
   event_id              INT NOT NULL,
   buyer_id              INT NOT NULL,
   status                ENUM('pending','confirmed','cancelled') NOT NULL DEFAULT 'pending',
-  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  confirmed_at          DATETIME NULL,
-  cancelled_at          DATETIME NULL,
+  created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  confirmed_at          TIMESTAMP NULL DEFAULT NULL,
+  cancelled_at          TIMESTAMP NULL DEFAULT NULL,
   cancel_reason         ENUM('buyer','expired') NULL,   -- postavlja se samo uz status cancelled
-  expires_at            DATETIME NOT NULL,
+  expires_at            TIMESTAMP NOT NULL,
   has_refund_protection BOOLEAN NOT NULL DEFAULT FALSE,
   refund_protection_fee DECIMAL(10,2) NOT NULL DEFAULT 0,
   CONSTRAINT uq_reservation_id_event UNIQUE (id, event_id),        -- cilj kompozitnog FK-a
@@ -172,11 +198,10 @@ CREATE TABLE reservation (
   INDEX idx_res_confirmed_at   (confirmed_at),
   -- Postojeci uski FK indeks dovoljan je za povijest kupca (~20 redaka).
   INDEX fk_res_buyer (buyer_id)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE reservation;
 
 --changeset eventhub:001-table-reservation_item dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservation_item';
 CREATE TABLE reservation_item (
   id                     INT AUTO_INCREMENT PRIMARY KEY,
   reservation_id         INT NOT NULL,
@@ -195,17 +220,16 @@ CREATE TABLE reservation_item (
   -- kategorija pripada ISTOM eventu
   CONSTRAINT fk_item_category FOREIGN KEY (category_id, event_id)
     REFERENCES ticket_category (id, event_id) ON DELETE RESTRICT
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE reservation_item;
 
 --changeset eventhub:001-table-reservation_seat dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservation_seat';
 CREATE TABLE reservation_seat (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   reservation_item_id INT NOT NULL,
   category_id         INT NOT NULL,
   seat_id             INT NOT NULL,
-  released_at         DATETIME NULL,
+  released_at         TIMESTAMP NULL DEFAULT NULL,
   active_seat_id      INT AS (IF(released_at IS NULL, seat_id, NULL)) STORED,
   CONSTRAINT uq_active_seat UNIQUE (active_seat_id),
   CONSTRAINT uq_rs_id_item  UNIQUE (id, reservation_item_id),      -- cilj kompozitnog FK-a
@@ -215,18 +239,17 @@ CREATE TABLE reservation_seat (
   -- ... a stavka je za ISTU kategoriju
   CONSTRAINT fk_rs_item FOREIGN KEY (reservation_item_id, category_id)
     REFERENCES reservation_item (id, category_id) ON DELETE RESTRICT
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE reservation_seat;
 
 --changeset eventhub:001-table-ticket dbms:mariadb
---preconditions onFail:MARK_RAN onError:HALT
---precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ticket';
 CREATE TABLE ticket (
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   reservation_item_id INT NOT NULL,
   reservation_seat_id INT NULL,                    -- NULL za stajace kategorije
-  ticket_code         CHAR(32) NOT NULL,           -- HEX(RANDOM_BYTES(16)), nepredvidljiv
-  checked_in_at       DATETIME NULL,
-  cancelled_at        DATETIME NULL,
+  ticket_code         CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,           -- HEX(RANDOM_BYTES(16)), nepredvidljiv
+  checked_in_at       TIMESTAMP NULL DEFAULT NULL,
+  cancelled_at        TIMESTAMP NULL DEFAULT NULL,
   refund_amount       DECIMAL(10,2) NULL,
   CONSTRAINT uq_ticket_code UNIQUE (ticket_code),
   CONSTRAINT chk_ticket_code CHECK (ticket_code REGEXP '^[0-9A-F]{32}$'),
@@ -241,5 +264,6 @@ CREATE TABLE ticket (
     REFERENCES reservation_seat (id, reservation_item_id) ON DELETE RESTRICT,
   -- Task 7: uski indeks dovoljan je za selektivni raspon povrata.
   INDEX idx_ticket_cancelled_at (cancelled_at)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--rollback DROP TABLE ticket;
 

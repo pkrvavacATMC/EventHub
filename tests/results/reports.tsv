@@ -1,0 +1,19 @@
+Seed: 8 evenata, 40 kupaca, 175 rezervacija, 290 karata	PASS
+Q1: potvrdene karte = 267 i neovisni broj vazecih karata	PASS
+Q1/Q4/Q6: svi eventi su ukljuceni	PASS
+Q2: svi kupci, ukupno 175 rezervacija	PASS
+Q3: samo Jesenski indie koncert, 19/20 prodano, 5 % slobodno	PASS
+Q5: samo Kazalisna premijera bez rezervacija	PASS
+Q4: Kazalisna premijera postoji i prihod je 0	PASS
+Q4/Q7/Q8: prihod jednak neovisnom izracunu iz tablica	PASS
+Q7: svaki organizator ukljucen, cak i bez prihoda	PASS
+Q6: Kazalisna premijera ima NULL stopu (nema rezerviranih karata)	PASS
+Q6: stopa svakog eventa odgovara neovisnom izracunu	PASS
+Q2: kupac 35 (Ema Radic) ima najvise rezervacija: 10	PASS
+Q4/Q7/Q8: poznati ukupni neto prihod 14436.60 EUR	PASS
+Q7: Adria Live ima 11120.00 EUR i najveci prihod	PASS
+Q8: sijecanj 2026: 567 + 14 - 25 = 556 EUR	PASS
+Q6: Zimska jazz vecer: 15 / (50 - 7) = 34.9 %	PASS
+Regresija Q1: direktno otkazivanje s vazecim kartama je odbijeno	PASS
+Q1: svaki event odgovara kartama confirmed rezervacija	PASS
+18	0

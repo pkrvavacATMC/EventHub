@@ -14,6 +14,7 @@ EXECUTE create_user_statement;
 DEALLOCATE PREPARE create_user_statement;
 SET @create_user = NULL;
 SET SESSION sql_mode = @previous_sql_mode;
+--rollback DROP USER 'eventhub_app'@'%';
 
 --changeset eventhub:005-user-eventhub_report dbms:mariadb
 --preconditions onFail:HALT onError:HALT
@@ -26,4 +27,5 @@ EXECUTE create_user_statement;
 DEALLOCATE PREPARE create_user_statement;
 SET @create_user = NULL;
 SET SESSION sql_mode = @previous_sql_mode;
+--rollback DROP USER 'eventhub_report'@'%';
 

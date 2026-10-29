@@ -1,6 +1,4 @@
-@buyer	@ev_future	@cat_parter_ny	@cat_vip_ny	@cat_split	@ev_past	@cat_indie	@cat_kaz	@confirmed_res	@valid_ticket	@cancelled_res	@cancelled_ticket	@past_ticket	@sold_seat	@free_seat
 1	6	9	10	12	2	8	11	107	199	1	13	47	163	161
-id	kategorija	opis	ocekivano	dobiveno	rezultat
 1	CHECK	Lokacija s kapacitetom 0	4025: chk_location_capacity	4025: CONSTRAINT `chk_location_capacity` failed for `eventhub`.`location`	PASS
 2	CHECK	Grad s praznim nazivom	4025: chk_city_name	4025: CONSTRAINT `chk_city_name` failed for `eventhub`.`city`	PASS
 3	CHECK	Kupac s neispravnim emailom	4025: chk_buyer_email	4025: CONSTRAINT `chk_buyer_email` failed for `eventhub`.`buyer`	PASS
@@ -82,7 +80,6 @@ id	kategorija	opis	ocekivano	dobiveno	rezultat
 79	VRIJEME	Rezervacija tocno na pocetku eventa	1644: Event je vec poceo ili prosao	1644: Event je vec poceo ili prosao	PASS
 80	PRAVILO	Direktno otkazivanje potvrdene rezervacije s vazecim kartama	1644: Rezervacija ima vazece karte	1644: Rezervacija ima vazece karte; prvo otkazite karte	PASS
 81	PRAVILO	Direktno otkazivanje pending rezervacije s aktivnim holdom	1644: Rezervacija ima aktivne holdove sjedala	1644: Rezervacija ima aktivne holdove sjedala; prvo oslobodite sjedala	PASS
-kategorija	pass	fail
 CHECK	20	0
 FK	7	0
 NOT NULL	2	0
@@ -91,5 +88,4 @@ PROCEDURA	23	0
 UNIQUE	4	0
 VRIJEME	6	0
 UKUPNO	81	0
-neuskladjeni_brojaci
 0

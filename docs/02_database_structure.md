@@ -6,11 +6,12 @@
 
 | Table | Purpose and relationships |
 | --- | --- |
-| city | Shared city reference; one city has many locations and buyers. |
+| city | Shared city reference with an IANA time zone; one city has many locations and buyers. |
 | organizer | One organizer manages many events. |
 | location | Venue belonging to one city; hosts many events. |
-| event | Scheduled event belonging to a venue and organizer; has many categories and reservations. |
-| buyer | Customer belonging to a city; can create many reservations. |
+| event | Scheduled event belonging to a venue, organizer and event type; has many categories and reservations. |
+| event_type | Nine seeded event types, such as concert, theatre and festival. |
+| buyer | Customer with optional password hash, verification and login status; can create many reservations. |
 | ticket_category | Event-specific price, fee, capacity, seating type and occupied-capacity counter. |
 | seat | Numbered seat in one category; category, row and number are unique. |
 | reservation | One buyer booking one event, with status, timestamps and refund protection. |
@@ -19,6 +20,13 @@
 | ticket | Individual issued ticket, optional seat hold, random code, check-in and refund information. |
 
 The event-to-buyer relationship is many-to-many through reservations. A reservation can have several items but only 1–4 tickets in total. Standing tickets have no seat hold. A seat can have many historical holds, but only one active hold. Each hold can issue at most one ticket.
+
+## Time model
+
+System moments are TIMESTAMP values and connections use UTC. Only the event's
+local start remains DATETIME, interpreted through location and city.time_zone.
+Refund and check-in windows use UTC elapsed hours; monthly revenue uses the
+Zagreb business calendar. Only buyer.updated_at updates automatically.
 
 ## Reservation lifecycle
 

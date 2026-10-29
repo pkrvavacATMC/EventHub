@@ -57,6 +57,8 @@ ALTER EVENT ev_expire_reservations DISABLE;
 -- ---------------------------------------------------------------------
 -- Matični podaci (stanje na pocetku godine)
 -- ---------------------------------------------------------------------
+SET @seed_previous_time_zone = @@session.time_zone;
+SET time_zone = 'Europe/Zagreb';
 SET timestamp = UNIX_TIMESTAMP('2026-01-05 09:00:00');
 
 INSERT INTO city (name) VALUES ('Zagreb'), ('Split'), ('Rijeka'), ('Osijek'), ('Zadar');
@@ -112,15 +114,15 @@ INSERT INTO buyer (name, surname, email, address, city_id) VALUES
   ('Lana', 'Kovacic', 'lana.kovacic39@example.com', 'Ulica 39', 4),
   ('Nikola', 'Pavlovic', 'nikola.pavlovic40@example.com', 'Ulica 40', 5);
 
-INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES
-  ('Zimska jazz vecer', '2026-02-20 20:00:00', 120, 2, 2),
-  ('Proljetni rock festival', '2026-04-18 19:00:00', 2000, 1, 1),
-  ('Klasika pod zvijezdama', '2026-07-10 21:00:00', 400, 4, 3),
-  ('Stand-up vecer', '2026-09-12 20:00:00', 150, 5, 2),
-  ('Jesenski indie koncert', '2026-11-21 20:00:00', 50, 2, 2),
-  ('Novogodisnji koncert', '2026-12-31 22:00:00', 3000, 1, 1),
-  ('Kazalisna premijera', '2027-01-15 19:30:00', 200, 5, 3),
-  ('Ljetni festival Split', '2027-06-20 18:00:00', 3000, 3, 1);
+INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id) VALUES
+  ('Zimska jazz vecer', '2026-02-20 20:00:00', 120, 2, 2, (SELECT id FROM event_type WHERE code = 'concert')),
+  ('Proljetni rock festival', '2026-04-18 19:00:00', 2000, 1, 1, (SELECT id FROM event_type WHERE code = 'festival')),
+  ('Klasika pod zvijezdama', '2026-07-10 21:00:00', 400, 4, 3, (SELECT id FROM event_type WHERE code = 'concert')),
+  ('Stand-up vecer', '2026-09-12 20:00:00', 150, 5, 2, (SELECT id FROM event_type WHERE code = 'standup')),
+  ('Jesenski indie koncert', '2026-11-21 20:00:00', 50, 2, 2, (SELECT id FROM event_type WHERE code = 'concert')),
+  ('Novogodisnji koncert', '2026-12-31 22:00:00', 3000, 1, 1, (SELECT id FROM event_type WHERE code = 'concert')),
+  ('Kazalisna premijera', '2027-01-15 19:30:00', 200, 5, 3, (SELECT id FROM event_type WHERE code = 'theatre')),
+  ('Ljetni festival Split', '2027-06-20 18:00:00', 3000, 3, 1, (SELECT id FROM event_type WHERE code = 'festival'));
 
 INSERT INTO ticket_category (event_id, name, price, service_fee, capacity, seating_type) VALUES
   (1, 'Parter', 25.00, 2.00, 100, 'standing'),
@@ -1415,9 +1417,17 @@ CALL confirm_reservation(@r);
 -- Kraj: vrati stvarno vrijeme, ukljuci scheduler, pocisti pomocne procedure
 -- ---------------------------------------------------------------------
 SET timestamp = DEFAULT;
+SET time_zone = @seed_previous_time_zone;
 ALTER EVENT ev_expire_reservations ENABLE;
 DROP PROCEDURE seed_check_in_reservation;
 DROP PROCEDURE seed_assert_empty;
+
+-- Testni web racuni: Ana verificirana, Ivan neverificiran; ostali bez racuna.
+UPDATE buyer SET password_hash = '$2b$12$quPE9J6xONK/KHjwVT41rO7X7iYSP6Y/oNYyZL0Fv77AfdQ7IJz3a',
+ email_verified_at = CASE WHEN email = 'ana.horvat1@example.com' THEN NOW() ELSE NULL END,
+ is_active = TRUE
+WHERE email IN ('ana.horvat1@example.com', 'ivan.knezevic2@example.com')
+ AND password_hash IS NULL AND email_verified_at IS NULL AND is_active = TRUE;
 
 -- Kontrola: brojaci moraju biti uskladeni (ocekivano: 0)
 SELECT COUNT(*) AS neuskladjeni_brojaci FROM v_reserved_check;

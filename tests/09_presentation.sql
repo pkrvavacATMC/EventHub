@@ -11,9 +11,9 @@ SET @loc = (SELECT MIN(id) FROM location WHERE name = 'Demo dvorana');
 INSERT INTO location (name, city_id, capacity)
 SELECT 'Demo dvorana', @city, 100 FROM DUAL WHERE @loc IS NULL;
 SET @loc = (SELECT MIN(id) FROM location WHERE name = 'Demo dvorana');
-INSERT INTO event (name, event_date, capacity, location_id, organizer_id)
+INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id)
 VALUES (CONCAT('Presentation ', DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f')),
-        NOW() + INTERVAL 30 DAY, 10, @loc, @org);
+        NOW() + INTERVAL 30 DAY, 10, @loc, @org, (SELECT id FROM event_type WHERE code = 'other'));
 SET @event = LAST_INSERT_ID();
 INSERT INTO ticket_category (event_id, name, price, service_fee, capacity, seating_type)
 VALUES (@event, 'Parter', 20.00, 2.00, 10, 'standing');

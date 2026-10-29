@@ -22,7 +22,7 @@
 # Zadano: Docker kontejner eventhub-db (kao tests/01_invalid_data.sql).
 # Lokalno npr.:  DB_CMD='mariadb -uroot -pLOZINKA $OPTS eventhub' bash tests/06_concurrency.sh
 # =====================================================================
-set -u
+set -uo pipefail
 DB_CMD=${DB_CMD:-'docker exec -i eventhub-db sh -c "mariadb -uroot -p\"\$MARIADB_ROOT_PASSWORD\" $OPTS eventhub"'}
 db()  { local OPTS="$1"; eval "$DB_CMD"; }   # SQL sa stdin
 q()   { echo "$1" | db "-N -B"; }            # jedna vrijednost
@@ -43,8 +43,8 @@ SET @buyer = (SELECT id FROM buyer WHERE email = 'demo-buyer@eventhub.test');
 SET @loc = (SELECT MIN(id) FROM location WHERE name = 'Demo dvorana');
 INSERT INTO location (name, city_id, capacity) SELECT 'Demo dvorana', @city, 100 FROM DUAL WHERE @loc IS NULL;
 SET @loc = (SELECT MIN(id) FROM location WHERE name = 'Demo dvorana');
-INSERT INTO event (name, event_date, capacity, location_id, organizer_id)
-VALUES (CONCAT('Konkurentnost $1 ', DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f')), NOW() + INTERVAL 30 DAY, 10, @loc, @org);
+INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id)
+VALUES (CONCAT('Konkurentnost $1 ', DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f')), NOW() + INTERVAL 30 DAY, 10, @loc, @org, (SELECT id FROM event_type WHERE code = 'other'));
 SET @ev = LAST_INSERT_ID();
 INSERT INTO ticket_category (event_id, name, price, service_fee, capacity, seating_type)
 VALUES (@ev, 'Parter', 20.00, 2.00, 10, 'standing');
@@ -208,3 +208,6 @@ echo " SAZETAK"
 echo "=================================================================="
 printf "%s" "$SUMMARY"
 echo "UKUPNO: $PASS PASS, $FAIL FAIL"
+
+# Neuspjeh mora biti vidljiv automatiziranom runneru.
+[ "$FAIL" -eq 0 ]

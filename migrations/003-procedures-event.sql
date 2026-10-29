@@ -1,11 +1,15 @@
 --liquibase formatted sql
 
--- Svaki objekt je zaseban changeset; JDBC dobiva cijelu definiciju.
--- Nema klijentske naredbe DELIMITER. Buduce izmjene dodavati u nove datoteke.
+-- Procedure upravljaju vlastitim transakcijama; pozivati uz autocommit=1.
 
---changeset eventhub:003-generate_seats dbms:mariadb splitStatements:false
+--changeset eventhub:003-generate_seats dbms:mariadb splitStatements:false rollbackSplitStatements:false
 CREATE OR REPLACE PROCEDURE generate_seats(IN p_category_id INT, IN p_rows INT, IN p_per_row INT)
 BEGIN
+  IF @@in_transaction = 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT =
+      'Procedura se mora pozvati izvan transakcije (autocommit=1)';
+  END IF;
+  BEGIN
   DECLARE v_type VARCHAR(10) DEFAULT NULL;
   DECLARE v_cap INT;
   DECLARE v_reserved INT;
@@ -45,12 +49,21 @@ BEGIN
     SET r = r + 1;
   END WHILE;
   COMMIT;
+  END;
 END;
+--rollback DROP PROCEDURE generate_seats;
 
---changeset eventhub:003-create_reservation dbms:mariadb splitStatements:false
+--changeset eventhub:003-create_reservation dbms:mariadb splitStatements:false rollbackSplitStatements:false
 CREATE OR REPLACE PROCEDURE create_reservation(IN p_buyer_id INT, IN p_event_id INT, IN p_items LONGTEXT,
                                     IN p_refund_protection BOOLEAN, OUT p_reservation_id INT)
 BEGIN
+  DECLARE v_previous_time_zone VARCHAR(64) DEFAULT @@session.time_zone;
+  IF @@in_transaction = 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT =
+      'Procedura se mora pozvati izvan transakcije (autocommit=1)';
+  END IF;
+  BEGIN
+  DECLARE v_event_zone VARCHAR(64);
   DECLARE v_event_date DATETIME DEFAULT NULL;
   DECLARE v_n INT;
   DECLARE v_total INT;
@@ -88,6 +101,7 @@ BEGIN
   BEGIN
     GET DIAGNOSTICS CONDITION 1 v_errno = MYSQL_ERRNO, v_msg = MESSAGE_TEXT;
     ROLLBACK;
+    SET time_zone = v_previous_time_zone;
     SET p_reservation_id = NULL;
     IF v_errno = 1062 AND v_msg LIKE '%uq_active_seat%' THEN
       SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Neko od sjedala je vec zauzeto';
@@ -98,6 +112,8 @@ BEGIN
     END IF;
   END;
 
+  -- UTC osigurava stvarnih 15 minuta i za vrijeme DST prijelaza.
+  SET time_zone = '+00:00';
   SET p_reservation_id = NULL;
   SET v_protect = COALESCE(p_refund_protection, FALSE);
 
@@ -193,7 +209,10 @@ BEGIN
   IF v_event_date IS NULL THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Event ne postoji';
   END IF;
-  IF v_event_date <= NOW() THEN
+  SELECT c.time_zone INTO v_event_zone FROM event e
+    JOIN location l ON l.id = e.location_id JOIN city c ON c.id = l.city_id
+   WHERE e.id = p_event_id;
+  IF local_to_utc(v_event_date, v_event_zone) <= UTC_TIMESTAMP() THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Event je vec poceo ili prosao';
   END IF;
 
@@ -257,17 +276,29 @@ BEGIN
   COMMIT;
   DROP TEMPORARY TABLE IF EXISTS tmp_items;
   DROP TEMPORARY TABLE IF EXISTS tmp_seats;
+  SET time_zone = v_previous_time_zone;
+  END;
 END;
+--rollback DROP PROCEDURE create_reservation;
 
---changeset eventhub:003-confirm_reservation dbms:mariadb splitStatements:false
+--changeset eventhub:003-confirm_reservation dbms:mariadb splitStatements:false rollbackSplitStatements:false
 CREATE OR REPLACE PROCEDURE confirm_reservation(IN p_reservation_id INT)
 BEGIN
+  DECLARE v_previous_time_zone VARCHAR(64) DEFAULT @@session.time_zone;
+  IF @@in_transaction = 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT =
+      'Procedura se mora pozvati izvan transakcije (autocommit=1)';
+  END IF;
+  BEGIN
   DECLARE v_status VARCHAR(10) DEFAULT NULL;
-  DECLARE v_expires DATETIME;
+  DECLARE v_expires TIMESTAMP;
   DECLARE v_event INT;
+  DECLARE v_event_zone VARCHAR(64);
   DECLARE v_event_date DATETIME;
-  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; SET time_zone = v_previous_time_zone; RESIGNAL; END;
 
+  -- UTC osigurava stvarnih 15 minuta i za vrijeme DST prijelaza.
+  SET time_zone = '+00:00';
   SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
   START TRANSACTION;
   SELECT status, expires_at, event_id INTO v_status, v_expires, v_event
@@ -282,7 +313,10 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Rezervacija je istekla';
   END IF;
   SELECT event_date INTO v_event_date FROM event WHERE id = v_event;
-  IF v_event_date <= NOW() THEN
+  SELECT c.time_zone INTO v_event_zone FROM event e
+    JOIN location l ON l.id = e.location_id JOIN city c ON c.id = l.city_id
+   WHERE e.id = v_event;
+  IF local_to_utc(v_event_date, v_event_zone) <= UTC_TIMESTAMP() THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Event je vec poceo ili prosao';
   END IF;
 
@@ -308,18 +342,29 @@ BEGIN
    WHERE ri.reservation_id = p_reservation_id AND rs.released_at IS NULL;
 
   COMMIT;
+  SET time_zone = v_previous_time_zone;
+  END;
 END;
+--rollback DROP PROCEDURE confirm_reservation;
 
---changeset eventhub:003-release_reservation dbms:mariadb splitStatements:false
+--changeset eventhub:003-release_reservation dbms:mariadb splitStatements:false rollbackSplitStatements:false
 CREATE OR REPLACE PROCEDURE release_reservation(IN p_reservation_id INT, IN p_reason VARCHAR(10))
 BEGIN
+  DECLARE v_previous_time_zone VARCHAR(64) DEFAULT @@session.time_zone;
+  IF @@in_transaction = 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT =
+      'Procedura se mora pozvati izvan transakcije (autocommit=1)';
+  END IF;
+  BEGIN
   DECLARE v_status VARCHAR(10) DEFAULT NULL;
-  DECLARE v_expires DATETIME;
+  DECLARE v_expires TIMESTAMP;
   DECLARE v_last INT DEFAULT 0;
   DECLARE v_next INT;
   DECLARE v_dummy INT;
-  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; SET time_zone = v_previous_time_zone; RESIGNAL; END;
 
+  -- UTC osigurava stvarnih 15 minuta i za vrijeme DST prijelaza.
+  SET time_zone = '+00:00';
   IF p_reason IS NULL OR p_reason NOT IN ('buyer', 'expired') THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Razlog otkazivanja mora biti buyer ili expired';
   END IF;
@@ -363,32 +408,45 @@ BEGIN
      SET status = 'cancelled', cancelled_at = NOW(), cancel_reason = p_reason
    WHERE id = p_reservation_id;
   COMMIT;
+  SET time_zone = v_previous_time_zone;
+  END;
 END;
+--rollback DROP PROCEDURE release_reservation;
 
---changeset eventhub:003-cancel_reservation dbms:mariadb splitStatements:false
+--changeset eventhub:003-cancel_reservation dbms:mariadb splitStatements:false rollbackSplitStatements:false
 CREATE OR REPLACE PROCEDURE cancel_reservation(IN p_reservation_id INT)
 BEGIN
   CALL release_reservation(p_reservation_id, 'buyer');
 END;
+--rollback DROP PROCEDURE cancel_reservation;
 
---changeset eventhub:003-cancel_ticket dbms:mariadb splitStatements:false
+--changeset eventhub:003-cancel_ticket dbms:mariadb splitStatements:false rollbackSplitStatements:false
 CREATE OR REPLACE PROCEDURE cancel_ticket(IN p_ticket_id INT, OUT p_refund_amount DECIMAL(10,2))
 BEGIN
+  DECLARE v_previous_time_zone VARCHAR(64) DEFAULT @@session.time_zone;
+  IF @@in_transaction = 1 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT =
+      'Procedura se mora pozvati izvan transakcije (autocommit=1)';
+  END IF;
+  BEGIN
   DECLARE v_res INT DEFAULT NULL;
   DECLARE v_status VARCHAR(10);
   DECLARE v_protect BOOLEAN;
   DECLARE v_event INT;
+  DECLARE v_event_zone VARCHAR(64);
   DECLARE v_event_date DATETIME;
-  DECLARE v_cancelled DATETIME;
-  DECLARE v_checked DATETIME;
+  DECLARE v_cancelled TIMESTAMP;
+  DECLARE v_checked TIMESTAMP;
   DECLARE v_rs INT;
   DECLARE v_price DECIMAL(10,2);
   DECLARE v_cat INT;
   DECLARE v_dummy INT;
   DECLARE v_hours INT;
   DECLARE v_active INT;
-  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; SET time_zone = v_previous_time_zone; RESIGNAL; END;
 
+  -- UTC osigurava stvarnih 15 minuta i za vrijeme DST prijelaza.
+  SET time_zone = '+00:00';
   SET p_refund_amount = NULL;
   -- karta -> rezervacija (veza je nepromjenjiva, pa ovo smije biti izvan transakcije)
   SELECT ri.reservation_id INTO v_res
@@ -424,11 +482,14 @@ BEGIN
 
   -- 4. event (samo citanje datuma)
   SELECT event_date INTO v_event_date FROM event WHERE id = v_event;
-  IF v_event_date <= NOW() THEN
+  SELECT c.time_zone INTO v_event_zone FROM event e
+    JOIN location l ON l.id = e.location_id JOIN city c ON c.id = l.city_id
+   WHERE e.id = v_event;
+  IF local_to_utc(v_event_date, v_event_zone) <= UTC_TIMESTAMP() THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Nema otkazivanja nakon pocetka eventa';
   END IF;
 
-  SET v_hours = TIMESTAMPDIFF(HOUR, NOW(), v_event_date);
+  SET v_hours = TIMESTAMPDIFF(HOUR, UTC_TIMESTAMP(), local_to_utc(v_event_date, v_event_zone));
   IF v_protect THEN
     SET p_refund_amount = v_price;
   ELSE
@@ -451,13 +512,25 @@ BEGIN
   END IF;
 
   COMMIT;
+  SET time_zone = v_previous_time_zone;
+  END;
 END;
+--rollback DROP PROCEDURE cancel_ticket;
 
---changeset eventhub:003-check_in_ticket dbms:mariadb splitStatements:false
-CREATE OR REPLACE PROCEDURE check_in_ticket(IN p_event_id INT, IN p_ticket_code CHAR(32))
+--changeset eventhub:003-check_in_ticket dbms:mariadb splitStatements:false rollbackSplitStatements:false
+CREATE OR REPLACE PROCEDURE check_in_ticket(IN p_event_id INT, IN p_ticket_code CHAR(32) CHARACTER SET ascii COLLATE ascii_bin)
 BEGIN
+  DECLARE v_previous_time_zone VARCHAR(64) DEFAULT @@session.time_zone;
   DECLARE v_event_id INT DEFAULT NULL;
+  DECLARE v_event_zone VARCHAR(64);
   DECLARE v_event_date DATETIME DEFAULT NULL;
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+    SET time_zone = v_previous_time_zone;
+    RESIGNAL;
+  END;
+  SET time_zone = '+00:00';
+  SET p_ticket_code = UPPER(TRIM(p_ticket_code));
   SELECT e.id, e.event_date INTO v_event_id, v_event_date
     FROM ticket t
     JOIN reservation_item ri ON ri.id = t.reservation_item_id
@@ -469,7 +542,11 @@ BEGIN
   IF p_event_id IS NULL OR v_event_id <> p_event_id THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Karta nije za ovaj event';
   END IF;
-  IF NOW() < v_event_date - INTERVAL 24 HOUR OR NOW() > v_event_date + INTERVAL 24 HOUR THEN
+  SELECT c.time_zone INTO v_event_zone FROM event e
+    JOIN location l ON l.id = e.location_id JOIN city c ON c.id = l.city_id
+   WHERE e.id = v_event_id;
+  IF UTC_TIMESTAMP() < local_to_utc(v_event_date, v_event_zone) - INTERVAL 24 HOUR
+     OR UTC_TIMESTAMP() > local_to_utc(v_event_date, v_event_zone) + INTERVAL 24 HOUR THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Check-in nije moguc u ovom terminu';
   END IF;
   UPDATE ticket SET checked_in_at = NOW()
@@ -477,9 +554,11 @@ BEGIN
   IF ROW_COUNT() = 0 THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Karta je otkazana ili vec iskoristena';
   END IF;
+  SET time_zone = v_previous_time_zone;
 END;
+--rollback DROP PROCEDURE check_in_ticket;
 
---changeset eventhub:003-expire_reservations dbms:mariadb splitStatements:false
+--changeset eventhub:003-expire_reservations dbms:mariadb splitStatements:false rollbackSplitStatements:false
 CREATE OR REPLACE PROCEDURE expire_reservations()
 BEGIN
   DECLARE done INT DEFAULT 0;
@@ -498,9 +577,11 @@ BEGIN
   END LOOP;
   CLOSE cur;
 END;
+--rollback DROP PROCEDURE expire_reservations;
 
 --changeset eventhub:003-ev_expire_reservations dbms:mariadb
--- Postojeci raspored i status eventa ostaju sacuvani.
-CREATE EVENT IF NOT EXISTS ev_expire_reservations
+SET time_zone = '+00:00';
+CREATE EVENT ev_expire_reservations
   ON SCHEDULE EVERY 1 MINUTE
   DO CALL expire_reservations();
+--rollback DROP EVENT ev_expire_reservations;

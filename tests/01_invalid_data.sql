@@ -168,7 +168,7 @@ CALL t_expect('CHECK', 'Karta iskoristena i otkazana', NULL,
 -- 2. NOT NULL (obavezni podaci)
 -- =====================================================================
 CALL t_expect('NOT NULL', 'Event bez naziva', NULL,
-  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (NULL, NOW() + INTERVAL 30 DAY, 10, 1, 1)',
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id) VALUES (NULL, NOW() + INTERVAL 30 DAY, 10, 1, 1, (SELECT id FROM event_type WHERE code = ''other''))',
   1048, 'name');
 CALL t_expect('NOT NULL', 'Kupac bez emaila', NULL,
   'INSERT INTO buyer (name, surname, email, city_id) VALUES (''Test'', ''Test'', NULL, 1)', 1048, 'email');
@@ -193,7 +193,7 @@ CALL t_expect('UNIQUE', 'Dva puta ista kategorija u eventu', NULL,
 CALL t_expect('FK', 'Kupac iz nepostojeceg grada', NULL,
   'INSERT INTO buyer (name, surname, email, city_id) VALUES (''Test'', ''Test'', ''fk@example.com'', 999999)', 1452, 'fk_buyer_city');
 CALL t_expect('FK', 'Event nepostojeceg organizatora', NULL,
-  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (''Test'', NOW() + INTERVAL 30 DAY, 10, 1, 999999)',
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id) VALUES (''Test'', NOW() + INTERVAL 30 DAY, 10, 1, 999999, (SELECT id FROM event_type WHERE code = ''other''))',
   1452, 'fk_event_organizer');
 CALL t_expect('FK', 'Stavka s kategorijom drugog eventa', @setup_pending,
   'INSERT INTO reservation_item (reservation_id, event_id, category_id, quantity, price_per_ticket, service_fee_per_ticket) VALUES (LAST_INSERT_ID(), @ev_future, @cat_split, 1, 35, 3)',
@@ -213,10 +213,10 @@ CALL t_expect('FK', 'Rezervacija za nepostojeceg kupca',  NULL,
 -- 5. Poslovna pravila u triggerima (direktne izmjene)
 -- =====================================================================
 CALL t_expect('PRAVILO', 'Event veci od lokacije', NULL,
-  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (''Test'', NOW() + INTERVAL 30 DAY, 9999999, 1, 1)',
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id) VALUES (''Test'', NOW() + INTERVAL 30 DAY, 9999999, 1, 1, (SELECT id FROM event_type WHERE code = ''other''))',
   1644, 'Kapacitet eventa prelazi kapacitet lokacije');
 CALL t_expect('PRAVILO', 'Novi event u proslosti', NULL,
-  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (''Test'', NOW() - INTERVAL 1 DAY, 10, 1, 1)',
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id) VALUES (''Test'', NOW() - INTERVAL 1 DAY, 10, 1, 1, (SELECT id FROM event_type WHERE code = ''other''))',
   1644, 'Event mora biti u buducnosti');
 CALL t_expect('PRAVILO', 'Pomicanje eventa u proslost', NULL,
   'UPDATE event SET event_date = NOW() - INTERVAL 1 DAY WHERE id = @ev_future', 1644, 'Novi datum eventa mora biti u buducnosti');
@@ -317,13 +317,13 @@ CALL t_expect('PROCEDURA', 'Nepoznat razlog otkazivanja', NULL,
 -- Uspjesni INSERT/UPDATE takoder se ponistavaju pomocu t_expect.
 -- =====================================================================
 CALL t_expect('VRIJEME', 'Novi event sekundu u proslosti', NULL,
-  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (''Test vrijeme'', NOW() - INTERVAL 1 SECOND, 10, 1, 1)',
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id) VALUES (''Test vrijeme'', NOW() - INTERVAL 1 SECOND, 10, 1, 1, (SELECT id FROM event_type WHERE code = ''other''))',
   1644, 'Event mora biti u buducnosti');
 CALL t_expect('VRIJEME', 'Novi event tocno sada', NULL,
-  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (''Test vrijeme'', NOW(), 10, 1, 1)',
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id) VALUES (''Test vrijeme'', NOW(), 10, 1, 1, (SELECT id FROM event_type WHERE code = ''other''))',
   1644, 'Event mora biti u buducnosti');
 CALL t_expect('VRIJEME', 'Novi event sekundu u buducnosti', NULL,
-  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id) VALUES (''Test vrijeme'', NOW() + INTERVAL 1 SECOND, 10, 1, 1)',
+  'INSERT INTO event (name, event_date, capacity, location_id, organizer_id, event_type_id) VALUES (''Test vrijeme'', NOW() + INTERVAL 1 SECOND, 10, 1, 1, (SELECT id FROM event_type WHERE code = ''other''))',
   0, '');
 CALL t_expect('VRIJEME', 'Pomicanje eventa tocno na sada', NULL,
   'UPDATE event SET event_date = NOW() WHERE id = @ev_future',

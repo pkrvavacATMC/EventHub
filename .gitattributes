@@ -1,0 +1,15 @@
+# Zadrzi LF i pri kloniranju na Windowsu: skripte i dokazni hashovi ovise o bajtovima.
+*.sql text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.xml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.tsv text eol=lf
+*.txt text eol=lf
+.env.example text eol=lf
+
+# Prazno zadnje TSV polje je ispravan sirovi izlaz MariaDB-a.
+perf/results/*.tsv whitespace=-blank-at-eol
+tests/results/*.tsv whitespace=-blank-at-eol

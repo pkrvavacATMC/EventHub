@@ -1,14 +1,8 @@
-# Task 5 — Rezultati testova transakcija
+# Rezultati transakcijskih testova
 
-Skripta: [05_transactions.sql](../tests/05_transactions.sql).
+Provjereno **2026-10-29T15:09:40.017760+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
 
-## Sažetak
-
-**7/7 PASS** — svi zabilježeni testovi su prošli. Provjereni su neuspjelo i uspješno plaćanje, `ROLLBACK`, `COMMIT` i ponašanje poslovnih procedura.
-
-`PASS` u scenariju bez transakcije znači da je očekivana nekonzistentnost uspješno reproducirana.
-
-## Rezultati scenarija
+**7/7 PASS.** PASS u prvom scenariju znaci da je namjerni problem bez transakcije reproduciran i zatim popravljen.
 
 | n | test | ocekivano | dobiveno | rezultat |
 | --- | --- | --- | --- | --- |
@@ -20,12 +14,4 @@ Skripta: [05_transactions.sql](../tests/05_transactions.sql).
 | 6 | 5 procedure, placanje uspjelo | reserved=6, karte=6, confirmed | reserved=6, karte=6, confirmed | PASS |
 | 7 | 6 procedure, 5 karata -> nista upisano | reserved=6, rezervacija=4 | reserved=6, rezervacija=4 | PASS |
 
-| sazetak | status |
-| --- | --- |
-| 7/7 PASS | SVI TESTOVI PROSLI |
-
-## Zabilježena otkazana rezervacija
-
-| rezervacija | status | cancel_reason | created_at | cancelled_at |
-| --- | --- | --- | --- | --- |
-| 197 | cancelled | buyer | 2026-10-28 13:58:46 | 2026-10-28 13:58:46 |
+[Sirovi rezultat](../tests/results/transactions.tsv). Dodatno je provjereno sest guardova i pet povrata session zone nakon greske: [dokaz](../tests/results/transaction_guards.txt).
