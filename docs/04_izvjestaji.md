@@ -1,14 +1,14 @@
-# Izvjestaji i provjera
+# Izvještaji i provjera
 
 Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
 
-Nad cistim seedom: **8 evenata, 40 kupaca, 175 rezervacija, 290 karata**. Rezultat: **18 PASS, 0 FAIL**.
+Nad čistim seedom: **8 događaja, 40 kupaca, 175 rezervacija, 290 karata**. Rezultat: **18 PASS, 0 FAIL**.
 
 ```bash
 docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot eventhub' < reports/02_verify_reports.sql
 ```
 
-Osam upita je u [reports/01_reports.sql](../reports/01_reports.sql), definicije u [004-views.sql](../migrations/004-views.sql). Q1 broji potvrdene karte; Q2 rangira kupce; Q3 nalazi manje od 10 % mjesta; Q4 prihod po eventu; Q5 evente bez rezervacija; Q6 stopu otkazivanja bez isteka u nazivniku; Q7 organizatore; Q8 poslovne mjesece u Europe/Zagreb.
+Osam upita je u [reports/01_reports.sql](../reports/01_reports.sql), definicije u [004-views.sql](../migrations/004-views.sql). Q1 broji potvrđene karte; Q2 rangira kupce; Q3 nalazi manje od 10 % mjesta; Q4 prihod po događaju; Q5 događaje bez rezervacija; Q6 stopu otkazivanja bez isteka u nazivniku; Q7 organizatore; Q8 poslovne mjesece u Europe/Zagreb.
 
 | provjera | rezultat |
 | --- | --- |
@@ -31,4 +31,4 @@ Osam upita je u [reports/01_reports.sql](../reports/01_reports.sql), definicije 
 | Regresija Q1: direktno otkazivanje s vazecim kartama je odbijeno | PASS |
 | Q1: svaki event odgovara kartama confirmed rezervacija | PASS |
 
-[Sirovi dokaz](../tests/results/reports.tsv). Provjera se izvrsava prije demonstracija koje dodaju podatke; poznate seed brojke poslije toga nisu primjenjive.
+[Sirovi dokaz](../tests/results/reports.tsv). Provjera se izvršava prije demonstracija koje dodaju podatke; poznate seed brojke poslije toga nisu primjenjive.

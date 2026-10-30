@@ -50,10 +50,21 @@ Koristi [izmjerene planove i rezultate](07_performanse.md), uz njihov datum i ve
 
 ```bash
 python3 perf/run_series.py
-python3 perf/summarize.py --document > docs/07_performanse.md
+python3 docs/render_docs.py --with-performance
 ```
 
 Četiri konfiguracije izvode se u tri kruga kroz jednu sesiju, a na kraju se vraćaju uski indeksi. Objasni stvarno pročitane retke, odabir indeksa, zauzeće prostora, trošak pisanja i ograničenja mjerenja. Širi indeksi mogu ubrzati čitanje; konačni odabir ovisi o opterećenju.
+
+## Dodatne pojedinačne provjere
+
+Nakon migracija i seeda pokreni kao administrator; test neispravnih podataka poništava svoje upise, a provjera ovlasti očekuje odbijene naredbe:
+
+```bash
+docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot eventhub' < tests/01_invalid_data.sql
+docker compose exec -T db sh -c 'MYSQL_PWD="$EVENTHUB_REPORT_PASSWORD" mariadb --force -ueventhub_report eventhub' < tests/08_readonly_user.sql
+```
+
+Potpuni backup/restore i rollback provjerava izolirani `python3 tests/test_database.py`; ručni backup je u [administraciji](08_administracija.md).
 
 ## Završna priprema
 

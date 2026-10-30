@@ -80,7 +80,7 @@ class Harness:
         run(self.dc + ['up', '-d', '--wait', 'db'])
 
     def down(self):
-        run(self.dc + ['down'], ok=False)
+        run(self.dc + ['down', '-v'], ok=False)
 
     def seed(self):
         # Seed je definiran lokalnim zagrebackim vremenima; NOW sprema TIMESTAMP trenutke.

@@ -214,7 +214,9 @@ def render_document(series):
     print('Q3 i Q5 koriste UTC datumske granice jer je session UTC; Q2 koristi poslovne mjesece u Europe/Zagreb. Za lokalni dan ili mjesec granice se prvo pretvore u UTC, a indeksirani stupac ostaje bez funkcije.\n')
     print('Manifest biljezi hash sheme, generatora, upita i rezultata te stvarne tipove stupaca. '
           'Parser provjerava iste podatke u svim krugovima i stvarne indekse konfiguracija.\n')
+    print('<details>\n<summary>Detaljni planovi, vremena svih uzoraka i zauzeće prostora</summary>\n')
     render_summary(series)
+    print('\n</details>\n')
     print('## Procjena indeksa\n')
     print(table(['Usporedba','Prije ms','Poslije ms','Tumacenje'],[
         ['A/B, Q3',f(median('A','Q3')),f(median('B','Q3')),'Uski confirmed_at izdvaja datumski raspon'],
@@ -244,20 +246,40 @@ def render_document(series):
     print('Izvori: [MariaDB ANALYZE FORMAT=JSON](https://mariadb.com/docs/server/reference/sql-statements/administrative-sql-statements/analyze-and-explain-statements/analyze-format-json), '
           '[CREATE TABLE LIKE](https://mariadb.com/docs/server/server-usage/tables/create-table), '
           '[izbor indeksa](https://mariadb.com/docs/server/ha-and-performance/optimization-and-tuning/optimization-and-indexes/building-the-best-index-for-a-given-select).\n')
-    print('## Reprodukcija\n\n```bash\nbash perf/00_create_perf_db.sh\ndocker compose exec -T db sh -c \'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot\' < perf/01_generate_100k.sql\n# Arhiviraj stari series.tsv i series_manifest.json izvan perf/results.\npython3 perf/run_series.py\npython3 perf/summarize.py --document > docs/07_performanse.md\n```\n')
+    print('## Reprodukcija\n\n```bash\nbash perf/00_create_perf_db.sh\ndocker compose exec -T db sh -c \'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot\' < perf/01_generate_100k.sql\n# Arhiviraj stari series.tsv i series_manifest.json izvan perf/results.\npython3 perf/run_series.py\npython3 docs/render_docs.py --with-performance\n```\n')
     print('Glavna baza treba imati cisti seed od 175 rezervacija; performance kopija se zamjenjuje. '
           'Funkcionalni dokazi nove sheme su u tests/results/manifest.json, a nezavisne seed '
           'provjere u perf/results/checks. FINAL_COUNTS potvrduje 0 neuskladjenih brojaca.\n')
 
+def refresh_document_text():
+    """Osvježi samo upute postojećeg dokumenta; ne obrađuje mjerenja."""
+    path = ROOT.parent / 'docs/07_performanse.md'
+    text = path.read_text()
+    text = text.replace('python3 perf/summarize.py --document > docs/07_performanse.md',
+                        'python3 docs/render_docs.py --with-performance')
+    start = text.index('## Izmjerena vremena')
+    end = text.index('## Procjena indeksa')
+    if '<details>' not in text:
+        text = (text[:start] + '<details>\n<summary>Detaljni planovi, vremena svih uzoraka i zauzeće prostora</summary>\n\n'
+                + text[start:end] + '</details>\n\n' + text[end:])
+    path.write_text(text)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--refresh-text', action='store_true', help='Osvježi samo upute u postojećem dokumentu bez obrade mjerenja')
     parser.add_argument('--document', action='store_true', help='Ispisi cijeli docs/07_performanse.md')
     args = parser.parse_args()
+    if args.refresh_text:
+        refresh_document_text()
+        return
     series = read_series()
     if args.document:
         render_document(series)
     else:
-        render_summary(series)
+        print('<details>\n<summary>Detaljni planovi, vremena svih uzoraka i zauzeće prostora</summary>\n')
+    render_summary(series)
+    print('\n</details>\n')
 
 if __name__ == '__main__':
     main()

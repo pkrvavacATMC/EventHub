@@ -4,7 +4,7 @@ Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manife
 
 **88 PASS, 0 FAIL**, brojaci uskladeni.
 
-| id | kategorija | opis | ocekivano | dobiveno | rezultat |
+| id | kategorija | opis | očekivano | dobiveno | rezultat |
 | --- | --- | --- | --- | --- | --- |
 | 1 | CHECK | Lokacija s kapacitetom 0 | 4025: chk_location_capacity | 4025: CONSTRAINT `chk_location_capacity` failed for `eventhub`.`location` | PASS |
 | 2 | CHECK | Grad s praznim nazivom | 4025: chk_city_name | 4025: CONSTRAINT `chk_city_name` failed for `eventhub`.`city` | PASS |

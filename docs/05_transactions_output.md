@@ -2,9 +2,9 @@
 
 Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manifest](../tests/results/manifest.json).
 
-**7/7 PASS.** PASS u prvom scenariju znaci da je namjerni problem bez transakcije reproduciran i zatim popravljen.
+**7/7 PASS.** PASS u prvom scenariju znači da je namjerni problem bez transakcije reproduciran i zatim popravljen.
 
-| n | test | ocekivano | dobiveno | rezultat |
+| n | test | očekivano | dobiveno | rezultat |
 | --- | --- | --- | --- | --- |
 | 1 | 1 bez transakcije, placanje palo | reserved=3, karte=0, NEKONZISTENTNO | reserved=3, karte=0, NEKONZISTENTNO | PASS |
 | 2 | 1b rucni popravak | reserved=0, OK | reserved=0, OK | PASS |
@@ -14,4 +14,4 @@ Provjereno **2026-10-29T16:35:25.403418+00:00**, na novoj shemi. Dokazi: [manife
 | 6 | 5 procedure, placanje uspjelo | reserved=6, karte=6, confirmed | reserved=6, karte=6, confirmed | PASS |
 | 7 | 6 procedure, 5 karata -> nista upisano | reserved=6, rezervacija=4 | reserved=6, rezervacija=4 | PASS |
 
-[Sirovi rezultat](../tests/results/transactions.tsv). Dodatno je provjereno sest guardova i pet povrata session zone nakon greske: [dokaz](../tests/results/transaction_guards.txt).
+[Sirovi rezultat](../tests/results/transactions.tsv). Dodatno je provjereno šest zaštita transakcije i pet vraćanja vremenske zone veze nakon greške: [dokaz](../tests/results/transaction_guards.txt).

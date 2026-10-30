@@ -23,6 +23,9 @@ Q3 i Q5 koriste UTC datumske granice jer je session UTC; Q2 koristi poslovne mje
 
 Manifest biljezi hash sheme, generatora, upita i rezultata te stvarne tipove stupaca. Parser provjerava iste podatke u svim krugovima i stvarne indekse konfiguracija.
 
+<details>
+<summary>Detaljni planovi, vremena svih uzoraka i zauzeće prostora</summary>
+
 ## Izmjerena vremena
 
 Samo series.tsv: jedna MariaDB sesija, tri uzastopna A-D kruga. Svaka celija: medijan [min-max] u ms svih 15 mjerenja (5 po krugu); vremena >= 1 ms imaju jednu decimalu, manja tri; tri zagrijavanja po konfiguraciji/upitu su iskljucena. Arhiva nije ukljucena.
@@ -519,6 +522,8 @@ D, svih 15 INSERT vremena (ms): 263.7, 230.7, 236.7, 285.2, 248.0, 169.8, 205.5,
 
 Ticket: 189133 karata, 3988 s povratom (2.1086 %), 185145 s NULL cancelled_at. Uski idx_ticket_cancelled_at povecava INDEX_LENGTH prema A za 2637824-2637824 bajtova (oko 2.6 MB). Indeks sadrzi i NULL vrijednosti svih neotkazanih karata.
 
+</details>
+
 ## Procjena indeksa
 
 | Usporedba | Prije ms | Poslije ms | Tumacenje |
@@ -549,7 +554,7 @@ bash perf/00_create_perf_db.sh
 docker compose exec -T db sh -c 'MYSQL_PWD="$MARIADB_ROOT_PASSWORD" mariadb -uroot' < perf/01_generate_100k.sql
 # Arhiviraj stari series.tsv i series_manifest.json izvan perf/results.
 python3 perf/run_series.py
-python3 perf/summarize.py --document > docs/07_performanse.md
+python3 docs/render_docs.py --with-performance
 ```
 
 Glavna baza treba imati cisti seed od 175 rezervacija; performance kopija se zamjenjuje. Funkcionalni dokazi nove sheme su u tests/results/manifest.json, a nezavisne seed provjere u perf/results/checks. FINAL_COUNTS potvrduje 0 neuskladjenih brojaca.
